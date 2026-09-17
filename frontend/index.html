@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobPilot</title>
+<style>
+:root {
+  color-scheme: light;
+  --navy: #0F172A; --navy-mid: #1E293B; --navy-light: #334155;
+  --slate: #64748B; --border: #E2E8F0; --bg: #F1F5F9;
+  --white: #FFFFFF; --blue: #2563EB; --blue-light: #DBEAFE; --blue-dark: #1D4ED8;
+  --green: #059669; --green-light: #D1FAE5;
+  --amber: #D97706; --amber-light: #FEF3C7;
+  --red: #DC2626; --red-light: #FEE2E2;
+  --purple: #7C3AED; --purple-light: #EDE9FE;
+  --text: #0F172A; --muted: #64748B;
+  --r: 8px; --rlg: 12px;
+  --sh: 0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.05);
+  --shmd: 0 4px 16px rgba(15,23,42,.10);
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+
+/* Sidebar */
+.sidebar{width:216px;background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;height:100vh}
+.brand{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+.brand-name{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.brand-tag{font-size:11px;color:rgba(255,255,255,.35);margin-top:1px}
+.nav{padding:10px 8px;flex:1}
+.nav-section{font-size:10px;font-weight:600;color:rgba(255,255,255,.28);letter-spacing:.08em;text-transform:uppercase;padding:10px 10px 4px;margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r);color:rgba(255,255,255,.6);cursor:pointer;font-size:13.5px;font-weight:500;transition:background .13s,color .13s;margin-bottom:1px;position:relative}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:var(--blue);color:#fff}
+.nav-item svg{width:15px;height:15px;flex-shrink:0}
+.nav-badge{margin-left:auto;background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
+.nav-item.active .nav-badge{background:rgba(255,255,255,.25)}
+.sidebar-foot{padding:12px;border-top:1px solid rgba(255,255,255,.07)}
+.ws-row{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgba(255,255,255,.3)}
+.ws-dot{width:7px;height:7px;border-radius:50%;background:#374151;transition:background .3s;flex-shrink:0}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:0 22px;height:54px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.content{flex:1;overflow-y:auto;padding:22px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--r);font-size:13.5px;font-weight:500;cursor:pointer;border:none;transition:background .13s,opacity .13s;font-family:var(--font);white-space:nowrap}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:14px;height:14px}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--blue-dark)}
+.btn-secondary{background:var(--white);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover:not(:disabled){background:var(--bg)}
+.btn-success{background:var(--green);color:#fff}
+.btn-success:hover:not(:disabled){background:#047857}
+.btn-danger{background:var(--red-light);color:var(--red);border:1px solid #FECACA}
+.btn-sm{padding:5px 11px;font-size:12.5px}
+.btn-lg{padding:11px 22px;font-size:15px;font-weight:600;border-radius:var(--rlg)}
+
+/* Cards */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:18px;box-shadow:var(--sh)}
+.card-title{font-size:14.5px;font-weight:600;margin-bottom:14px}
+
+/* Forms */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:12.5px;font-weight:500;margin-bottom:5px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--r);font-size:13.5px;font-family:var(--font);color:var(--text);background:var(--white);outline:none;transition:border-color .13s,box-shadow .13s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.form-textarea{resize:vertical;min-height:76px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:16px;box-shadow:var(--sh)}
+.stat-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stat-icon svg{width:16px;height:16px}
+.stat-icon.blue{background:var(--blue-light);color:var(--blue)}
+.stat-icon.green{background:var(--green-light);color:var(--green)}
+.stat-icon.amber{background:var(--amber-light);color:var(--amber)}
+.stat-icon.purple{background:var(--purple-light);color:var(--purple)}
+.stat-val{font-size:26px;font-weight:700;line-height:1}
+.stat-lbl{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+/* Feed search bar */
+.feed-header{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:16px;margin-bottom:16px;box-shadow:var(--sh)}
+.search-row{display:flex;gap:8px;margin-bottom:8px}
+.search-row .form-input{flex:1}
+.site-chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{display:flex;align-items:center;gap:6px;padding:5px 11px;border:1.5px solid var(--border);border-radius:20px;font-size:12.5px;font-weight:500;cursor:pointer;user-select:none;transition:all .13s;background:var(--white)}
+.chip input{display:none}
+.chip.on{border-color:var(--blue);background:var(--blue-light);color:var(--blue)}
+.chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+/* Quick-add template chips */
+.tpl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tpl-chip{padding:3px 10px;border:1.5px solid var(--border);border-radius:14px;font-size:11.5px;font-weight:500;cursor:pointer;user-select:none;background:var(--bg);color:var(--muted);transition:all .12s}
+.tpl-chip:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-light)}
+/* Parsed preview pills */
+.parse-preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:0;transition:all .2s}
+.parse-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:11.5px;font-weight:600;background:var(--blue-light);color:var(--blue);border:1px solid var(--blue)}
+.parse-pill.loc{background:#f0fdf4;color:#16a34a;border-color:#86efac}
+.parse-pill.time{background:#fefce8;color:#ca8a04;border-color:#fde047}
+.parse-pill.type{background:#faf5ff;color:#9333ea;border-color:#d8b4fe}
+.parse-pill.remote{background:#f0f9ff;color:#0284c7;border-color:#7dd3fc}
+.parse-parsing{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+
+/* Apply-all banner */
+.apply-banner{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#1D4ED8,#2563EB);color:#fff;border-radius:var(--rlg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shmd)}
+.apply-banner-left h3{font-size:15px;font-weight:600;margin-bottom:2px}
+.apply-banner-left p{font-size:12.5px;opacity:.8}
+.apply-banner-right{display:flex;gap:8px;align-items:center}
+
+/* Progress overlay */
+.progress-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:900;align-items:center;justify-content:center}
+.progress-overlay.show{display:flex}
+.progress-box{background:var(--white);border-radius:var(--rlg);padding:28px 32px;width:480px;max-width:calc(100vw - 32px);box-shadow:var(--shmd)}
+.progress-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.progress-sub{font-size:13.5px;color:var(--muted);margin-bottom:20px}
+.progress-track{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.progress-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .4s ease;width:0%}
+.progress-label{font-size:12.5px;color:var(--muted);text-align:right;margin-bottom:14px}
+.log-panel{background:var(--navy);color:rgba(255,255,255,.8);border-radius:var(--r);padding:12px 14px;font-size:12px;font-family:Menlo,Monaco,monospace;max-height:180px;overflow-y:auto;line-height:1.8}
+.log-line{display:flex;gap:8px}
+.log-line.success{color:#34D399}
+.log-line.error{color:#F87171}
+.log-line.warning{color:#FCD34D}
+.log-time{color:rgba(255,255,255,.25);flex-shrink:0}
+
+/* Job cards */
+.jobs-list{display:flex;flex-direction:column;gap:9px}
+.job-card{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;transition:border-color .13s,box-shadow .13s;box-shadow:var(--sh)}
+.job-card:hover{border-color:#93C5FD;box-shadow:var(--shmd)}
+.job-card.selected{border-color:var(--blue);background:#F0F7FF}
+.jcb{width:17px;height:17px;flex-shrink:0;margin-top:3px;accent-color:var(--blue);cursor:pointer}
+.jinfo{flex:1;min-width:0}
+.jtitle{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.jcomp{font-size:13px;color:var(--muted);margin-bottom:7px}
+.jmeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}
+.jtag{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);background:var(--bg);padding:2px 7px;border-radius:4px;border:1px solid var(--border)}
+.jtag svg{width:11px;height:11px}
+.badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;text-transform:capitalize}
+.badge.linkedin{background:#DBEAFE;color:#1D4ED8}
+.badge.naukri{background:#FEF3C7;color:#92400E}
+.badge.indeed{background:#D1FAE5;color:#065F46}
+.badge.glassdoor{background:#EDE9FE;color:#5B21B6}
+.badge.instahyre{background:#FCE7F3;color:#9D174D}
+.badge.easy{background:var(--green-light);color:var(--green)}
+.badge.new{background:var(--bg);color:var(--slate);border:1px solid var(--border)}
+.badge.applied{background:var(--blue-light);color:var(--blue)}
+.badge.interviewing{background:var(--amber-light);color:var(--amber)}
+.badge.offered{background:var(--green-light);color:var(--green)}
+.badge.rejected{background:var(--red-light);color:var(--red)}
+.score-pill{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:10px;border:1.5px solid}
+.score-high{background:#D1FAE5;color:#065F46;border-color:#6EE7B7}
+.score-mid{background:var(--amber-light);color:#92400E;border-color:#FCD34D}
+.score-low{background:var(--red-light);color:var(--red);border-color:#FECACA}
+.jactions{flex-shrink:0;display:flex;gap:6px;align-items:center}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}
+.tab{padding:9px 14px;font-size:13.5px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .13s,border-color .13s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* Empty */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty svg{width:44px;height:44px;color:var(--border);margin-bottom:10px}
+.empty h3{font-size:15px;font-weight:600;color:var(--text);margin-bottom:5px}
+.empty p{font-size:13.5px;max-width:280px;margin:0 auto}
+
+/* Settings layout */
+.settings-grid{display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:start}
+.settings-nav{display:flex;flex-direction:column;gap:2px}
+.settings-nav-item{padding:8px 12px;border-radius:var(--r);font-size:13.5px;font-weight:500;cursor:pointer;color:var(--muted);transition:background .13s,color .13s}
+.settings-nav-item:hover{background:var(--white);color:var(--text)}
+.settings-nav-item.active{background:var(--white);color:var(--blue);font-weight:600;box-shadow:var(--sh)}
+
+/* Cred cards */
+.cred-row{display:flex;flex-direction:column;gap:7px}
+.cred-item{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r);background:var(--white)}
+.cred-logo{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.cred-info{flex:1;min-width:0}
+.cred-name{font-size:13.5px;font-weight:600;text-transform:capitalize}
+.cred-user{font-size:12px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.on{background:var(--green)}
+.dot.off{background:var(--border)}
+
+/* Skills input */
+.skills-wrap{display:flex;flex-wrap:wrap;gap:5px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--white);cursor:text;min-height:40px}
+.skill-tag{display:flex;align-items:center;gap:3px;background:var(--blue-light);color:var(--blue);font-size:12px;font-weight:500;padding:2px 7px;border-radius:4px}
+.skill-tag button{border:none;background:none;color:var(--blue);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.skill-input{border:none;outline:none;font-size:13px;font-family:var(--font);background:transparent;min-width:100px;color:var(--text)}
+
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:800;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--white);border-radius:var(--rlg);padding:22px;width:460px;max-width:calc(100vw - 24px);box-shadow:var(--shmd);max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:14px}
+.modal-footer{display:flex;gap:7px;justify-content:flex-end;margin-top:18px}
+
+/* Profile avatar + accounts modal */
+.profile-av-btn{display:flex;align-items:center;gap:7px;padding:4px 10px 4px 4px;border-radius:20px;cursor:pointer;border:1px solid transparent;transition:background .14s,border-color .14s}
+.profile-av-btn:hover{background:var(--bg);border-color:var(--border)}
+.profile-av-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;letter-spacing:.5px;overflow:hidden;position:relative}
+.profile-av-circle img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.profile-av-name{font-size:13px;font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.account-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border);cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:8px;background:var(--white)}
+.account-card:hover{border-color:var(--blue);background:var(--blue-light)}
+.av-upload-wrap{position:relative;cursor:pointer;display:inline-block}
+.av-upload-wrap:hover .av-camera-overlay{opacity:1}
+.av-camera-overlay{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .18s;pointer-events:none}
+.av-large{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;font-weight:700;overflow:hidden;flex-shrink:0}
+.av-large img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.account-card.active-card{border-color:var(--blue);background:var(--blue-light)}
+.account-card-av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;flex-shrink:0}
+.account-card-info{flex:1;min-width:0}
+.account-card-name{font-size:14px;font-weight:600;margin-bottom:2px}
+.account-card-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Toast */
+.toasts{position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px}
+.toast{background:var(--navy-mid);color:#fff;padding:9px 14px;border-radius:var(--r);font-size:13.5px;font-weight:500;box-shadow:var(--shmd);display:flex;align-items:center;gap:7px;max-width:310px;animation:toastIn .22s ease}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+.toast.warning{background:var(--amber)}
+@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* AI key status */
+.ai-status{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--r);font-size:13px;font-weight:500;margin-bottom:14px}
+.ai-status.ready{background:var(--green-light);color:#065F46;border:1px solid #6EE7B7}
+.ai-status.missing{background:var(--amber-light);color:#92400E;border:1px solid #FCD34D}
+
+/* Cover letter modal */
+.cover-letter-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;max-height:320px;overflow-y:auto;margin-bottom:14px}
+
+/* ── Sites page ── */
+.sites-grid{display:flex;flex-direction:column;gap:10px;max-width:620px}
+.site-card{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);overflow:hidden;box-shadow:var(--sh);transition:box-shadow .15s,border-color .15s}
+.site-card:hover{box-shadow:var(--shmd)}
+.site-card.connected{border-color:var(--green)}
+.site-card-header{height:5px;width:100%}
+.site-card-body{padding:18px 18px 16px;display:flex;align-items:center;gap:13px}
+.site-logo{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;letter-spacing:-.5px}
+.site-card-info{flex:1;min-width:0}
+.site-card-name{font-size:14px;font-weight:700}
+.site-card-desc{font-size:11.5px;color:var(--muted);margin-top:2px}
+.site-status-badge{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;flex-shrink:0;margin-top:6px}
+.site-status-badge.conn{background:var(--green-light);color:#065F46}
+.site-status-badge.disc{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+.site-status-badge .sdot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.site-card-action{flex-shrink:0}
+.nb-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes loginFadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(max-width:960px){.stats-row{grid-template-columns:repeat(2,1fr)}.form-row{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr}}
+
+/* ── Login / profile-picker page ── */
+/* ── Login page ── */
+#login-page{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:row;transition:opacity .4s}
+#login-page.hidden{opacity:0;pointer-events:none}
+#login-left{flex:0 0 55%;position:relative;overflow:hidden;background:url('/static/bg_office.png') center/cover no-repeat}
+#login-left-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(10,14,40,.25) 0%,rgba(10,14,40,.55) 100%);display:flex;flex-direction:column;justify-content:flex-end;padding:48px 44px}
+#login-left-quote{color:#fff}
+#login-left-quote div:first-child{font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.15;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+#login-left-quote div:last-child{font-size:16px;color:rgba(255,255,255,.65);margin-top:6px;font-weight:400}
+#login-right{flex:1;background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 60%,#0f172a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;overflow-y:auto}
+.login-brand{text-align:center;margin-bottom:36px;animation:loginFadeIn .5s ease both}
+.login-brand-name{font-size:28px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px}
+.login-brand-tag{font-size:13px;color:rgba(255,255,255,.45)}
+.login-profiles{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:420px;animation:loginFadeIn .5s .1s ease both}
+.login-profile-card{width:130px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:16px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+.login-profile-card:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);transform:translateY(-3px)}
+.login-profile-card.active-login{border-color:#6366f1;background:rgba(99,102,241,.15)}
+.login-av{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700;overflow:hidden;flex-shrink:0}
+.login-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.login-card-name{font-size:13px;font-weight:600;color:#fff;text-align:center;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.login-card-title{font-size:11px;color:rgba(255,255,255,.5);text-align:center;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.login-card-badge{font-size:10px;font-weight:700;background:#6366f1;color:#fff;padding:2px 8px;border-radius:8px}
+.login-add-card{width:130px;background:transparent;border:1.5px dashed rgba(255,255,255,.2);border-radius:16px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;color:rgba(255,255,255,.4);transition:border-color .18s,color .18s}
+.login-add-card:hover{border-color:rgba(255,255,255,.5);color:rgba(255,255,255,.7)}
+.login-footer{margin-top:28px;font-size:12px;color:rgba(255,255,255,.3);text-align:center;animation:loginFadeIn .5s .2s ease both}
+.login-lock-badge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.login-pw-overlay{position:absolute;inset:0;border-radius:14px;background:rgba(15,23,42,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;animation:loginFadeIn .18s ease}
+.login-pw-overlay input{width:100%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.25);border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;text-align:center;letter-spacing:2px}
+.login-pw-overlay input::placeholder{letter-spacing:normal;color:rgba(255,255,255,.4)}
+.login-pw-overlay input:focus{border-color:#6366f1}
+@keyframes loginShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@media(max-width:700px){#login-left{display:none}#login-right{flex:1}}
+</style>
+</head>
+<body>
+
+<!-- ── Login / Profile-picker page ── -->
+<div id="login-page" class="hidden" style="opacity:0">
+  <!-- Left: hero image -->
+  <div id="login-left">
+    <div id="login-left-overlay">
+      <div id="login-left-quote">
+        <div>Better Jobs.<br>Brighter Futures.</div>
+        <div>AI-powered job search that works while you sleep.</div>
+      </div>
+    </div>
+  </div>
+  <!-- Right: profile picker -->
+  <div id="login-right">
+    <div class="login-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" width="32" height="32" style="margin-bottom:8px"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14h-.08z"/></svg>
+      <div class="login-brand-name">JobPilot</div>
+      <div class="login-brand-tag">Choose your account to continue</div>
+    </div>
+    <div class="login-profiles" id="login-profiles-grid">
+      <!-- Populated by JS -->
+    </div>
+    <div class="login-footer">· <span style="color:rgba(255,255,255,.45);cursor:pointer" onclick="skipLoginPage()">Skip →</span></div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-name">JobPilot</div>
+    <div class="brand-tag">AI-Powered Job Search</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active" onclick="go('feed')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Job Feed
+      <span class="nav-badge" id="nb-jobs">0</span>
+    </div>
+    <div class="nav-item" onclick="go('tracker')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Applications
+      <span class="nav-badge" id="nb-apps">0</span>
+    </div>
+    <div class="nav-section">Setup</div>
+    <div class="nav-item" onclick="go('sites')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Job Sites
+      <span class="nav-badge" id="nb-sites">0</span>
+    </div>
+    <div class="nav-item" onclick="go('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </div>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="ws-row">
+      <div class="ws-dot" id="ws-dot"></div>
+      <span id="ws-lbl">Connecting…</span>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Job Feed</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div id="topbar-right"></div>
+      <div class="profile-av-btn" id="profile-av-btn" onclick="openAccountsModal()" title="Switch profile">
+        <div class="profile-av-circle" id="profile-av-circle" style="background:#6366f1">?</div>
+        <span class="profile-av-name" id="profile-av-name"></span>
+      </div>
+    </div>
+  </div>
+  <div class="content" id="content"></div>
+</main>
+
+<!-- Accounts / Profiles modal -->
+<div class="overlay" id="accounts-modal" onclick="if(event.target===this)closeAccountsModal()">
+  <div class="modal" style="width:440px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="modal-title" style="margin-bottom:0">My Profiles</div>
+      <button onclick="closeAccountsModal()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:0 4px">&times;</button>
+    </div>
+
+    <!-- Active profile editor -->
+    <div id="accounts-modal-editor" style="background:var(--bg);border-radius:var(--r);padding:18px;margin-bottom:20px;border:1px solid var(--border)"></div>
+
+    <!-- Divider -->
+    <div style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px">All Profiles</div>
+
+    <!-- Profile list -->
+    <div id="accounts-modal-list"></div>
+
+    <!-- Create button -->
+    <button class="btn" style="width:100%;justify-content:center;margin-top:8px" onclick="newAccountFromModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Create New Profile
+    </button>
+
+    <!-- Switch account (re-show login page) -->
+    <div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <button onclick="reopenLoginPage()" style="background:none;border:none;font-size:12.5px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:5px" onmouseenter="this.style.color='var(--text)'" onmouseleave="this.style.color='var(--muted)'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Switch to a different account
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Apply-all progress overlay -->
+<div class="progress-overlay" id="apply-overlay">
+  <div class="progress-box">
+    <div class="progress-title">Applying to jobs…</div>
+    <div class="progress-sub" id="po-sub">Preparing…</div>
+    <div class="progress-track"><div class="progress-fill" id="po-fill"></div></div>
+    <div class="progress-label" id="po-label"></div>
+    <div class="log-panel" id="po-log"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('apply-overlay').classList.remove('show')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic modal -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- Toasts -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+const API = 'http://127.0.0.1:8765';
+let ws = null;
+let jobs = [], applications = [], stats = {}, profileSkills = [];
+let lastSearchKw = '';
+let connectedSites = new Set(); // sites that have saved credentials
+
+// ── Profile / Account helpers ──────────────────────────────────────────────
+const _PROF_COLORS = ['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6'];
+function profColor(id) { return _PROF_COLORS[((id || 1) - 1) % _PROF_COLORS.length]; }
+function profInitials(p) {
+  const n = p.full_name || p.profile_name || '';
+  return n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('') || '?';
+}
+function profAvatarHTML(p, size = 30, large = false) {
+  const cls = large ? 'av-large' : 'profile-av-circle';
+  const hasAvatar = p && p.id && p.avatar_path;
+  if (hasAvatar) {
+    return `<div class="${cls}" style="background:${profColor(p.id)}"><img src="/api/profiles/${p.id}/avatar?t=${Date.now()}" alt="avatar"></div>`;
+  }
+  return `<div class="${cls}" style="background:${profColor(p.id)}">${profInitials(p)}</div>`;
+}
+
+async function initProfileAvatar() {
+  try {
+    const p = await api('GET', '/api/profile');
+    const btn = document.getElementById('profile-av-btn');
+    const nameEl = document.getElementById('profile-av-name');
+    if (btn) {
+      // Replace the inner circle with fresh avatar HTML
+      const old = document.getElementById('profile-av-circle');
+      if (old) {
+        const newCircle = document.createElement('div');
+        newCircle.id = 'profile-av-circle';
+        newCircle.className = 'profile-av-circle';
+        newCircle.style.background = profColor(p.id);
+        if (p.avatar_path) {
+          newCircle.innerHTML = `<img src="/api/profiles/${p.id}/avatar?t=${Date.now()}" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+        } else {
+          newCircle.textContent = profInitials(p);
+        }
+        old.replaceWith(newCircle);
+      }
+    }
+    if (nameEl) nameEl.textContent = p.profile_name || p.full_name || 'Profile';
+  } catch(_) {}
+}
+
+async function openAccountsModal() {
+  let profiles = [], active = {};
+  try { profiles = await api('GET', '/api/profiles'); } catch(_) {}
+  try { active = await api('GET', '/api/profile') || {}; } catch(_) {}
+
+  // ── Editor section (active profile) ──
+  const editor = document.getElementById('accounts-modal-editor');
+  if (editor) {
+    const hasAvatar = active.avatar_path;
+    editor.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+        <!-- Avatar with upload overlay -->
+        <div class="av-upload-wrap" onclick="triggerAvatarUpload(${active.id})">
+          ${hasAvatar
+            ? `<div class="av-large" style="background:${profColor(active.id)}"><img src="/api/profiles/${active.id}/avatar?t=${Date.now()}" alt="avatar"></div>`
+            : `<div class="av-large" style="background:${profColor(active.id)}">${profInitials(active)}</div>`
+          }
+          <div class="av-camera-overlay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="20" height="20"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="uploadAvatarFile(${active.id}, this)">
+        </div>
+        <!-- Editable name + title -->
+        <div style="flex:1;min-width:0">
+          <input id="acct-edit-name" value="${esc(active.profile_name || '')}" placeholder="Profile name" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:14px;font-weight:600;background:var(--white);color:var(--text);margin-bottom:7px;box-sizing:border-box">
+          <input id="acct-edit-title" value="${esc(active.current_title || '')}" placeholder="Current title (e.g. Senior Data Engineer)" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;background:var(--white);color:var(--text);box-sizing:border-box">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="font-size:12.5px;height:32px" onclick="saveAccountEdit(${active.id})">Save changes</button>
+        <span style="font-size:12px;color:var(--muted);line-height:32px">Editing active profile</span>
+      </div>`;
+  }
+
+  // ── Profile list ──
+  const list = document.getElementById('accounts-modal-list');
+  if (list) {
+    list.innerHTML = profiles.map(p => {
+      const hasAv = p.avatar_path;
+      const avHtml = hasAv
+        ? `<div class="account-card-av" style="background:${profColor(p.id)};border-radius:50%;overflow:hidden;width:38px;height:38px;flex-shrink:0"><img src="/api/profiles/${p.id}/avatar?t=${Date.now()}" style="width:100%;height:100%;object-fit:cover"></div>`
+        : `<div class="account-card-av" style="background:${profColor(p.id)}">${profInitials(p)}</div>`;
+      return `
+      <div class="account-card ${p.is_active ? 'active-card' : ''}" onclick="switchAccountFromModal(${p.id})">
+        ${avHtml}
+        <div class="account-card-info">
+          <div class="account-card-name">${esc(p.profile_name || 'Unnamed')}</div>
+          <div class="account-card-sub">${esc(p.current_title || p.full_name || 'No title set')}</div>
+        </div>
+        ${p.is_active ? '<span style="background:var(--blue);color:#fff;font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:10px;flex-shrink:0">Active</span>' : ''}
+        <button onclick="event.stopPropagation();deleteAccountById(${p.id})" title="Delete" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;padding:2px 5px;border-radius:4px;flex-shrink:0" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--muted)'">&times;</button>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('accounts-modal').classList.add('open');
+}
+
+function closeAccountsModal() {
+  document.getElementById('accounts-modal').classList.remove('open');
+}
+
+async function saveAccountEdit(profileId) {
+  const name  = document.getElementById('acct-edit-name')?.value.trim();
+  const title = document.getElementById('acct-edit-title')?.value.trim();
+  if (!name) { toast('Profile name cannot be empty', 'error'); return; }
+  try {
+    await api('POST', '/api/profile', { profile_name: name, current_title: title });
+    await initProfileAvatar();
+    toast('Profile updated', 'success');
+    if (currentPage === 'settings') renderProfileTab();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function triggerAvatarUpload(profileId) {
+  // Account tab uses a distinct id to avoid clashing with the modal's input
+  const el = document.getElementById('avatar-file-input-acct')
+           || document.getElementById('avatar-file-input');
+  el?.click();
+}
+
+async function uploadAvatarFile(profileId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch(`${API}/api/profiles/${profileId}/avatar`, { method: 'POST', body: form });
+    if (!res.ok) throw new Error(await res.text());
+    // Mark avatar_path as truthy in DB — the endpoint already does this,
+    // just refresh the UI
+    await initProfileAvatar();
+    toast('Profile picture updated', 'success');
+    openAccountsModal(); // refresh modal to show new avatar
+    if (currentPage === 'settings') renderProfileTab();
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+async function switchAccountFromModal(id) {
+  let profiles = [];
+  try { profiles = await api('GET', '/api/profiles'); } catch(_) {}
+  const target = profiles.find(p => p.id === id);
+  if (!target) return;
+  if (target.is_active) { closeAccountsModal(); return; } // already active
+  if (target.has_password) {
+    _showModalPasswordScreen(target);
+    return;
+  }
+  await _doSwitchAccount(id);
+}
+
+function _showModalPasswordScreen(profile) {
+  const avHtml = profile.avatar_path
+    ? `<div class="av-large" style="background:${profColor(profile.id)};width:64px;height:64px;font-size:22px"><img src="/api/profiles/${profile.id}/avatar?t=${Date.now()}" alt="avatar"></div>`
+    : `<div class="av-large" style="background:${profColor(profile.id)};width:64px;height:64px;font-size:22px">${profInitials(profile)}</div>`;
+
+  const container = document.getElementById('accounts-modal-list');
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;padding:8px 0 4px">
+      ${avHtml}
+      <div style="font-size:15px;font-weight:700;margin-top:10px">${esc(profile.profile_name || 'Profile')}</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px">${esc(profile.current_title || '')}</div>
+      <div style="width:100%;max-width:280px">
+        <div style="position:relative;margin-bottom:10px">
+          <input id="modal-pw-input" type="password" placeholder="Password" autocomplete="current-password"
+            style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);color:var(--text);outline:none"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+            onkeydown="if(event.key==='Enter')_submitModalPassword(${profile.id})">
+        </div>
+        <div id="modal-pw-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:8px;text-align:center"></div>
+        <button class="btn btn-primary" style="width:100%;height:40px;font-size:14px;font-weight:600" onclick="_submitModalPassword(${profile.id})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" style="margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Unlock
+        </button>
+        <button onclick="openAccountsModal()" style="width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px">← Back to accounts</button>
+      </div>
+    </div>`;
+  setTimeout(() => document.getElementById('modal-pw-input')?.focus(), 50);
+}
+
+async function _submitModalPassword(id) {
+  const pw = document.getElementById('modal-pw-input')?.value || '';
+  const errEl = document.getElementById('modal-pw-err');
+  if (!pw) { if (errEl) errEl.textContent = 'Enter your password'; return; }
+  try {
+    await api('POST', `/api/profiles/${id}/verify-password`, { password: pw });
+    await _doSwitchAccount(id);
+  } catch(_) {
+    if (errEl) errEl.textContent = 'Incorrect password';
+    const inp = document.getElementById('modal-pw-input');
+    if (inp) { inp.value = ''; inp.style.borderColor = 'var(--red)'; inp.focus(); setTimeout(() => inp.style.borderColor = 'var(--border)', 1200); }
+  }
+}
+
+async function _doSwitchAccount(id) {
+  try {
+    await api('POST', `/api/profiles/${id}/activate`);
+    closeAccountsModal();
+    await initProfileAvatar();
+    toast('Account switched', 'success');
+    if (currentPage === 'settings') renderProfileTab();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function _showModalNewProfile() {
+  const container = document.getElementById('accounts-modal-list');
+  container.innerHTML = `
+    <div style="padding:4px 0">
+      <div style="font-size:13.5px;font-weight:600;margin-bottom:10px">New account name</div>
+      <input id="modal-new-name" type="text" placeholder='e.g. "Senior Backend Engineer"'
+        style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);color:var(--text);outline:none;margin-bottom:10px"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter')_submitNewProfile()">
+      <div id="modal-new-err" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:6px"></div>
+      <button class="btn btn-primary" style="width:100%;height:38px;font-size:13.5px" onclick="_submitNewProfile()">Create account</button>
+      <button onclick="openAccountsModal()" style="width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px">← Cancel</button>
+    </div>`;
+  setTimeout(() => document.getElementById('modal-new-name')?.focus(), 50);
+}
+
+async function _submitNewProfile() {
+  const name = document.getElementById('modal-new-name')?.value.trim();
+  const errEl = document.getElementById('modal-new-err');
+  if (!name) { if (errEl) errEl.textContent = 'Enter a name'; return; }
+  try {
+    const created = await api('POST', '/api/profiles', { name });
+    await api('POST', `/api/profiles/${created.id}/activate`);
+    closeAccountsModal();
+    await initProfileAvatar();
+    toast(`Account "${name}" created`, 'success');
+    if (currentPage === 'settings') renderProfileTab();
+  } catch(e) { if (errEl) errEl.textContent = e.message || 'Failed'; }
+}
+
+async function newAccountFromModal() {
+  _showModalNewProfile();
+}
+async function deleteAccountById(id) {
+  if (!confirm('Delete this profile? This cannot be undone.')) return;
+  try {
+    await api('DELETE', `/api/profiles/${id}`);
+    await initProfileAvatar();
+    toast('Profile deleted', 'success');
+    openAccountsModal();
+    if (currentPage === 'settings') renderProfileTab();
+  } catch(e) { toast(e.message || 'Cannot delete the last profile', 'error'); }
+}
+let selectedJobs = new Set();
+let applyTotal = 0, applyDone = 0;
+
+// ── WebSocket ──
+function connectWS() {
+  ws = new WebSocket(`ws://127.0.0.1:8765/ws/logs`);
+  ws.onopen = () => { setWS(true); };
+  ws.onclose = () => { setWS(false); setTimeout(connectWS, 3000); };
+  ws.onmessage = e => handleWS(JSON.parse(e.data));
+}
+function setWS(on) {
+  document.getElementById('ws-dot').style.background = on ? '#22C55E' : '#374151';
+  document.getElementById('ws-lbl').textContent = on ? 'Live' : 'Disconnected';
+}
+async function handleWS(d) {
+  if (d.type === 'log') {
+    appendLog(d.message, d.level, 'po-log');
+    appendLog(d.message, d.level, 'inline-log');
+  }
+  if (d.type === 'search_result') {
+    // Update chip to show live count
+    const chip = document.getElementById(`chip-${d.site}`);
+    if (chip) {
+      const existing = chip.querySelector('.chip-count');
+      if (existing) existing.remove();
+      if (d.count > 0) {
+        const span = document.createElement('span');
+        span.className = 'chip-count';
+        span.style.cssText = 'background:var(--blue);color:#fff;border-radius:8px;padding:0 5px;font-size:10px;font-weight:700;margin-left:2px';
+        span.textContent = d.count;
+        chip.appendChild(span);
+      }
+    }
+    appendLog(`${d.site}: ${d.count} job${d.count === 1 ? '' : 's'} found`, d.count > 0 ? 'success' : 'warning', 'inline-log');
+    // Reload jobs list live after each site completes
+    if (currentPage === 'feed') loadFeedJobs();
+  }
+  if (d.type === 'search_done') {
+    const newFound = d.total || 0;
+    appendLog(`✓ Found ${newFound} job${newFound === 1 ? '' : 's'} this run`, newFound > 0 ? 'success' : 'warning', 'inline-log');
+    resetSearchBtn();
+    refreshStats();
+    if (currentPage === 'feed') {
+      await loadFeedJobs();
+      // Show apply banner so user can kick off apply step
+      if (newFound > 0) {
+        const banner = document.getElementById('apply-banner');
+        if (banner) banner.style.display = 'flex';
+      }
+    }
+    setTimeout(() => { const il = document.getElementById('inline-log'); if (il) il.style.display = 'none'; }, 5000);
+  }
+  if (d.type === 'apply_all_start') {
+    applyTotal = d.total; applyDone = 0;
+    showOverlay();
+    setProgress(0, `Starting — ${d.total} jobs to apply…`);
+  }
+  if (d.type === 'apply_all_progress') {
+    applyDone = d.current;
+    setProgress(d.current / d.total, `${d.current}/${d.total} — ${d.job}`);
+    appendLog(`Applying: ${d.job}`, 'info', 'po-log');
+  }
+  if (d.type === 'apply_all_done') {
+    const msg = d.stopped
+      ? `Stopped — ${d.applied} applied before stop`
+      : `Done — ${d.applied} applied, ${d.skipped} skipped`;
+    setProgress(1, msg);
+    if (!d.stopped) toast(`Applied to ${d.applied} job${d.applied === 1 ? '' : 's'}!`, 'success');
+    else toast(`Stopped after ${d.applied} application${d.applied === 1 ? '' : 's'}`, 'warning');
+    // Reset apply-all button
+    const applyBtn = document.getElementById('apply-all-btn');
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Apply All New (<span id="new-count">0</span>)'; }
+    // Hide stop btn (only relevant during apply, not search)
+    const stop = document.getElementById('stop-btn');
+    if (stop) stop.style.display = 'none';
+    refreshStats();
+    if (currentPage === 'feed') loadFeedJobs();
+    resetSearchBtn();
+    setTimeout(() => {
+      const il = document.getElementById('inline-log');
+      if (il) il.style.display = 'none';
+    }, 6000);
+  }
+  if (d.type === 'apply_stopped') {
+    toast('Stopping after current job…', 'warning');
+  }
+  if (d.type === 'applied') {
+    if (d.success) toast('Application submitted!', 'success');
+    else toast('Opened in browser — complete manually', 'warning');
+  }
+}
+
+// ── Progress overlay ──
+function showOverlay() { document.getElementById('apply-overlay').classList.add('show'); document.getElementById('po-log').innerHTML = ''; }
+function setProgress(pct, label) {
+  document.getElementById('po-fill').style.width = (pct * 100) + '%';
+  document.getElementById('po-label').textContent = label;
+  if (pct >= 1) { document.getElementById('po-sub').textContent = 'Finished!'; }
+  else { document.getElementById('po-sub').textContent = 'This may take a few minutes…'; }
+}
+
+function appendLog(msg, level = 'info', containerId = 'po-log') {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const row = document.createElement('div');
+  row.className = `log-line ${level}`;
+  const t = new Date().toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  row.innerHTML = `<span class="log-time">${t}</span><span>${esc(msg)}</span>`;
+  el.appendChild(row);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── API ──
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.json().catch(() => ({ detail: r.statusText })); throw new Error(e.detail || 'Error'); }
+  return r.json();
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Toast ──
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(() => el.remove(), 300); }, 3800);
+}
+
+// ── Modal ──
+function openModal(html) { document.getElementById('modal-box').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
+function closeModal(e) { if (e && e.target !== document.getElementById('overlay')) return; document.getElementById('overlay').classList.remove('open'); }
+function closeModalF() { document.getElementById('overlay').classList.remove('open'); }
+
+// ── Routing ──
+let currentPage = 'feed';
+function go(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const active = [...document.querySelectorAll('.nav-item')].find(el => el.getAttribute('onclick')?.includes(`'${page}'`));
+  if (active) active.classList.add('active');
+  document.getElementById('topbar-right').innerHTML = '';
+  const titles = { feed: 'Job Feed', tracker: 'Applications', sites: 'Job Sites', settings: 'Settings' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  const renders = { feed: renderFeed, tracker: renderTracker, sites: renderSites, settings: renderSettings };
+  (renders[page] || (() => {}))();
+}
+
+async function refreshStats() {
+  try {
+    stats = await api('GET', '/api/stats');
+    document.getElementById('nb-jobs').textContent = stats.total_jobs || 0;
+    document.getElementById('nb-apps').textContent = stats.total_applied || 0;
+  } catch(_) {}
+}
+
+async function refreshConnectedSites() {
+  try {
+    const creds = await api('GET', '/api/credentials');
+    connectedSites = new Set(creds.map(c => c.site));
+    const nb = document.getElementById('nb-sites');
+    if (nb) nb.textContent = connectedSites.size;
+  } catch(_) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FEED PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const SITE_COLORS = { linkedin:'#1D4ED8', naukri:'#D97706', indeed:'#059669', glassdoor:'#7C3AED', instahyre:'#DB2777' };
+
+async function renderFeed() {
+  // Check profile completeness first
+  let profile = {};
+  try { profile = await api('GET', '/api/profile'); } catch(_) {}
+  const profileMissing = !profile || !profile.full_name;
+
+  const c = document.getElementById('content');
+  // Fetch custom sites and merge with built-ins
+  let customSiteList = [];
+  try { customSiteList = await api('GET', '/api/sites/custom'); } catch(_) {}
+  const builtinSites = ['linkedin','naukri','indeed','glassdoor','instahyre'];
+  const allSites = [
+    ...builtinSites.map(s => ({ key: s, name: SITE_DEFS[s]?.name || s, color: SITE_COLORS[s] || '#6366f1' })),
+    ...customSiteList.map(s => ({ key: s.key, name: s.name, color: s.color || '#6366f1' })),
+  ];
+  // Auto-check connected sites (or all if none are configured yet)
+  const defaultOn = connectedSites.size > 0 ? connectedSites : new Set(allSites.map(s => s.key));
+  const chips = allSites.map(({ key: s, name: sName, color }) => {
+    const on = defaultOn.has(s);
+    const hasConn = connectedSites.has(s);
+    return `<label class="chip ${on?'on':''}" id="chip-${s}" title="${hasConn?'Connected':'Not connected — add in Job Sites'}">
+      <input type="checkbox" value="${s}" ${on?'checked':''} onchange="toggleChip(this,'${s}')">
+      <span class="chip-dot" style="background:${color}"></span>${esc(sName)}${hasConn?'<span style="margin-left:3px;font-size:10px;opacity:.7">✓</span>':''}
+    </label>`;
+  }).join('');
+  const customFilterOpts = customSiteList.map(s =>
+    `<option value="${s.key}">${esc(s.name)}</option>`).join('');
+
+  c.innerHTML = `
+  ${profileMissing ? `
+  <div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--rlg);padding:13px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" width="18" height="18"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="font-size:13.5px;font-weight:500;color:#92400E">Profile not set up — Claude needs your details to fill application forms.</span>
+    </div>
+    <button class="btn btn-sm" style="background:#D97706;color:#fff;flex-shrink:0" onclick="go('settings')">Set up profile →</button>
+  </div>` : ''}
+  <!-- ── Careers hero banner ── -->
+  <div style="position:relative;border-radius:var(--rlg);overflow:hidden;margin-bottom:16px;height:110px;box-shadow:var(--sh)">
+    <div style="position:absolute;inset:0;background:url('/static/bg_careers.png') center/cover no-repeat"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(10,14,50,.72) 0%,rgba(10,14,50,.3) 60%,transparent 100%);display:flex;align-items:center;padding:0 28px;gap:18px">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-.5px;text-shadow:0 1px 8px rgba(0,0,0,.4)">Find your next role</div>
+        <div style="font-size:12.5px;color:rgba(255,255,255,.7);margin-top:3px">AI fills every application form — you just click Apply</div>
+      </div>
+      <button class="btn" onclick="document.getElementById('f-nl').focus()" style="background:#6366f1;color:#fff;border:none;font-size:13px;padding:8px 18px;border-radius:8px;font-weight:600;flex-shrink:0;margin-left:auto;white-space:nowrap">
+        Search Jobs →
+      </button>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="stat-val" id="sv-total">—</div><div class="stat-lbl">Jobs in DB</div></div>
+    <div class="stat"><div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div class="stat-val" id="sv-applied">—</div><div class="stat-lbl">Applied</div></div>
+    <div class="stat"><div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-val" id="sv-inter">—</div><div class="stat-lbl">Interviewing</div></div>
+    <div class="stat"><div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-val" id="sv-offers">—</div><div class="stat-lbl">Offers</div></div>
+  </div>
+
+  <div class="feed-header">
+    <div class="search-row">
+      <input class="form-input" id="f-nl"
+        placeholder="e.g. data engineer jobs in Bengaluru, last 24 hours"
+        onkeydown="if(event.key==='Enter')runSearch()"
+        style="font-size:14px" />
+      <select id="f-limit" title="Results per site" style="height:36px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer">
+        <option value="10">10 / site</option>
+        <option value="25" selected>25 / site</option>
+        <option value="50">50 / site</option>
+        <option value="100">100 / site</option>
+      </select>
+      <button class="btn btn-primary" onclick="runSearch()" id="search-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Search
+      </button>
+      <button class="btn btn-danger" onclick="stopApply()" id="stop-btn" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Stop
+      </button>
+    </div>
+
+    <!-- Quick-add template chips -->
+    <div class="tpl-chips">
+      <span style="font-size:11px;color:var(--muted);align-self:center;margin-right:2px">Quick add:</span>
+      <button class="tpl-chip" onclick="addToSearch('last 24 hours')">⏱ Last 24h</button>
+      <button class="tpl-chip" onclick="addToSearch('last 3 days')">📅 Last 3 days</button>
+      <button class="tpl-chip" onclick="addToSearch('last week')">📅 Last week</button>
+      <button class="tpl-chip" onclick="addToSearch('in Bengaluru')">📍 Bengaluru</button>
+      <button class="tpl-chip" onclick="addToSearch('in Hyderabad')">📍 Hyderabad</button>
+      <button class="tpl-chip" onclick="addToSearch('in Mumbai')">📍 Mumbai</button>
+      <button class="tpl-chip" onclick="addToSearch('remote')">🏠 Remote</button>
+      <button class="tpl-chip" onclick="addToSearch('full time')">💼 Full-time</button>
+      <button class="tpl-chip" onclick="addToSearch('contract')">🤝 Contract</button>
+      <button class="tpl-chip" onclick="addToSearch('3 years experience')">🎓 3 yrs exp</button>
+      <button class="tpl-chip" onclick="addToSearch('5 years experience')">🎓 5 yrs exp</button>
+      <button class="tpl-chip" onclick="addToSearch('8 years experience')">🎓 8 yrs exp</button>
+    </div>
+
+    <!-- Parsed preview — shown after AI parses the query -->
+    <div class="parse-preview" id="parse-preview" style="display:none"></div>
+
+    <div class="site-chips">${chips}</div>
+  </div>
+
+  <div class="apply-banner" id="apply-banner" style="display:none">
+    <div class="apply-banner-left">
+      <h3 id="banner-title">Apply to all new jobs</h3>
+      <p id="banner-sub">Claude will intelligently fill every application form using your profile</p>
+    </div>
+    <div class="apply-banner-right">
+      <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.3)" onclick="applySelected()">
+        Apply Selected (<span id="sel-count">0</span>)
+      </button>
+      <button class="btn btn-lg" style="background:#fff;color:var(--blue-dark)" onclick="applyAll()" id="apply-all-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Apply All New (<span id="new-count">0</span>)
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:10px 14px;margin-bottom:12px;box-shadow:var(--sh)">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <!-- Search -->
+      <div style="position:relative;flex:1;min-width:160px;max-width:240px">
+        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="form-input" id="filter-kw" placeholder="Search jobs…" style="padding-left:28px" oninput="filterJobs()">
+      </div>
+
+      <!-- Site -->
+      <select class="form-select" id="filter-site" style="max-width:130px" onchange="filterJobs()">
+        <option value="">All sites</option>
+        <option value="linkedin">LinkedIn</option><option value="naukri">Naukri</option>
+        <option value="indeed">Indeed</option><option value="glassdoor">Glassdoor</option>
+        <option value="instahyre">Instahyre</option>${customFilterOpts}
+      </select>
+
+      <!-- Date -->
+      <select class="form-select" id="filter-date" style="max-width:130px" onchange="filterJobs()">
+        <option value="">Any time</option>
+        <option value="1">Last 24 hours</option>
+        <option value="3">Last 3 days</option>
+        <option value="7">Last week</option>
+        <option value="30">Last month</option>
+      </select>
+
+      <!-- Sort -->
+      <select class="form-select" id="filter-sort" style="max-width:130px" onchange="filterJobs()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="company">Company A–Z</option>
+        <option value="title">Title A–Z</option>
+      </select>
+
+      <div style="height:22px;width:1px;background:var(--border);flex-shrink:0"></div>
+
+      <!-- Toggles -->
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="filter-easy" onchange="filterJobs()" style="accent-color:var(--blue)"> Easy Apply
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="filter-new" onchange="filterJobs()" style="accent-color:var(--blue)" checked> Not applied
+      </label>
+
+      <div style="flex:1"></div>
+
+      <!-- Selection actions -->
+      <button class="btn btn-secondary btn-sm" onclick="selectAll()" style="white-space:nowrap">Select all</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearSel()">Clear</button>
+    </div>
+
+    <!-- Active filter count -->
+    <div id="filter-summary" style="font-size:11.5px;color:var(--muted);margin-top:6px;display:none"></div>
+  </div>
+
+  <div id="inline-log" style="display:none" class="log-panel" style="margin-bottom:12px;max-height:100px"></div>
+  <div id="jobs-container"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><h3>No jobs yet</h3><p>Enter keywords above and click Search All, or just click Search All to use your profile's desired title.</p></div></div>`;
+
+  updateStatsUI();
+  loadFeedJobs();
+}
+
+function toggleChip(input, site) {
+  document.getElementById(`chip-${site}`)?.classList.toggle('on', input.checked);
+}
+
+function searchBtnSpinner(label) {
+  const btn = document.getElementById('search-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `<span style="border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;width:13px;height:13px;animation:spin .6s linear infinite;display:inline-block;flex-shrink:0"></span> ${label}`;
+}
+
+function resetSearchBtn() {
+  const btn  = document.getElementById('search-btn');
+  const stop = document.getElementById('stop-btn');
+  if (btn)  { btn.disabled = false; btn.style.display = ''; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search'; }
+  if (stop) { stop.style.display = 'none'; stop.disabled = false; stop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Stop'; }
+}
+
+async function stopApply() {
+  const stop = document.getElementById('stop-btn');
+  if (stop) { stop.disabled = true; stop.textContent = 'Stopping…'; }
+  try { await api('POST', '/api/stop'); } catch(_) {}
+}
+
+// ── Quick-add template chips ───────────────────────────────────────────────
+function addToSearch(text) {
+  const input = document.getElementById('f-nl');
+  if (!input) return;
+  const cur = input.value.trim();
+  // Avoid duplicates
+  if (cur.toLowerCase().includes(text.toLowerCase())) return;
+  input.value = cur ? cur + ', ' + text : text;
+  input.focus();
+  // Clear any previous parse preview when the query changes
+  hideParsedPreview();
+}
+
+// ── Parse preview helpers ─────────────────────────────────────────────────
+function showParsedPreview(parsed) {
+  const el = document.getElementById('parse-preview');
+  if (!el) return;
+  const freshnessLabel = { '24h': 'Last 24h', '3d': 'Last 3 days', '7d': 'Last week', '30d': 'Last month', 'any': '' };
+  let html = '';
+  if (parsed.keywords)        html += `<span class="parse-pill">🔍 ${esc(parsed.keywords)}</span>`;
+  if (parsed.location)        html += `<span class="parse-pill loc">📍 ${esc(parsed.location)}</span>`;
+  if (parsed.freshness && parsed.freshness !== 'any') html += `<span class="parse-pill time">⏱ ${freshnessLabel[parsed.freshness] || parsed.freshness}</span>`;
+  if (parsed.job_type)        html += `<span class="parse-pill type">💼 ${esc(parsed.job_type)}</span>`;
+  if (parsed.remote)          html += `<span class="parse-pill remote">🏠 Remote</span>`;
+  if (parsed.min_experience > 0) html += `<span class="parse-pill type">🎓 ${parsed.min_experience}+ yrs exp</span>`;
+  el.innerHTML = html;
+  el.style.display = html ? 'flex' : 'none';
+}
+
+function showParsingSpinner() {
+  const el = document.getElementById('parse-preview');
+  if (!el) return;
+  el.style.display = 'flex';
+  el.innerHTML = '<span class="parse-parsing"><span style="border:2px solid rgba(0,0,0,.15);border-top-color:var(--blue);border-radius:50%;width:11px;height:11px;animation:spin .6s linear infinite;display:inline-block"></span> Understanding your search…</span>';
+}
+
+function hideParsedPreview() {
+  const el = document.getElementById('parse-preview');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+// ── Main search ───────────────────────────────────────────────────────────
+async function runSearch() {
+  const nlInput = document.getElementById('f-nl');
+  const query = nlInput ? nlInput.value.trim() : '';
+  const sites = [...document.querySelectorAll('.chip input:checked')].map(i => i.value);
+
+  if (!query) { toast('Enter what you\'re looking for', 'warning'); nlInput && nlInput.focus(); return; }
+  if (!sites.length) { toast('Select at least one site', 'warning'); return; }
+
+  const btn  = document.getElementById('search-btn');
+  const stop = document.getElementById('stop-btn');
+
+  // ── Step 1: AI parse the natural language query ──────────────────────────
+  let parsed = { keywords: query, location: '', freshness: 'any', job_type: '', remote: false };
+  showParsingSpinner();
+  try {
+    parsed = await api('POST', '/api/ai/parse-search', { query });
+  } catch(_) {
+    // AI unavailable or key not set — treat full query as keywords
+    parsed.keywords = query;
+  }
+  showParsedPreview(parsed);
+
+  const kw  = parsed.keywords || query;
+  const loc = parsed.location || '';
+  lastSearchKw = kw;   // remember for post-search filter sync
+
+  // Map freshness → filter-date value so the date filter is auto-set after search
+  const freshnessToFilter = { '24h': '1', '3d': '3', '7d': '7', '30d': '30', 'any': '' };
+  const dateFilterVal = freshnessToFilter[parsed.freshness] || '';
+
+  // ── Step 2: Kick off the actual scraping ─────────────────────────────────
+  if (btn)  { btn.disabled = true; btn.style.display = 'none'; }
+  if (stop) { stop.style.display = ''; stop.disabled = false; }
+
+  const il = document.getElementById('inline-log');
+  if (il) { il.style.display = 'block'; il.innerHTML = ''; }
+  document.querySelectorAll('.chip-count').forEach(el => el.remove());
+
+  const filters = {};
+  if (parsed.job_type) filters.job_type = parsed.job_type;
+  if (parsed.freshness && parsed.freshness !== 'any') filters.freshness = parsed.freshness;
+  if (parsed.remote) filters.remote = true;
+  if (parsed.min_experience > 0) filters.min_experience = parsed.min_experience;
+  appendLog(`Searching "${kw}"${loc ? ' in ' + loc : ''}${parsed.freshness !== 'any' ? ' · ' + parsed.freshness : ''} on: ${sites.join(', ')}`, 'info', 'inline-log');
+
+  try {
+    const results_limit = parseInt(document.getElementById('f-limit')?.value || '25', 10);
+    await api('POST', '/api/search', { keywords: kw, location: loc, sites, filters, results_limit });
+    // search_done WS event will reload jobs and reset button
+    // Auto-apply the parsed date filter after results load
+    if (dateFilterVal) {
+      setTimeout(() => {
+        const fd = document.getElementById('filter-date');
+        if (fd) { fd.value = dateFilterVal; filterJobs(); }
+      }, 800);
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+    resetSearchBtn();
+  }
+}
+
+async function loadFeedJobs() {
+  try {
+    jobs = await api('GET', '/api/jobs?limit=300');
+    // After a search, reset all filters and apply only the search keyword
+    // so the user immediately sees the results without restrictive stale filters
+    if (lastSearchKw) {
+      const fkw  = document.getElementById('filter-kw');   if (fkw)  fkw.value   = lastSearchKw;
+      const fd   = document.getElementById('filter-date');  if (fd)   fd.value    = '';   // Any time
+      const fs   = document.getElementById('filter-site');  if (fs)   fs.value    = '';   // All sites
+      const easy = document.getElementById('filter-easy');  if (easy) easy.checked = false;
+      const nw   = document.getElementById('filter-new');   if (nw)   nw.checked  = false;
+    }
+    filterJobs();
+    updateApplyBanner();
+    updateStatsUI();
+  } catch(e) { /* backend may not be running yet */ }
+}
+
+function updateStatsUI() {
+  if (!stats || !Object.keys(stats).length) {
+    refreshStats().then(updateStatsUI);
+    return;
+  }
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val ?? '—'; };
+  set('sv-total', stats.total_jobs ?? 0);
+  set('sv-applied', stats.total_applied ?? 0);
+  set('sv-inter', stats.interviewing ?? 0);
+  set('sv-offers', stats.offered ?? 0);
+}
+
+function timeAgo(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr.includes('T') && !isoStr.endsWith('Z') ? isoStr + 'Z' : isoStr);
+  const diff = Date.now() - d.getTime();
+  if (isNaN(diff) || diff < 0) return '';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  // For anything older than 1 hour, show the actual date
+  return formatDate(d);
+}
+
+function formatDate(d) {
+  if (!(d instanceof Date)) d = new Date(d);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const isThisYear = d.getFullYear() === now.getFullYear();
+  const opts = isThisYear
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' };
+  return d.toLocaleDateString('en-US', opts);
+}
+
+function filterJobs() {
+  const kw      = (document.getElementById('filter-kw')?.value||'').toLowerCase();
+  const site    = document.getElementById('filter-site')?.value||'';
+  const days    = parseInt(document.getElementById('filter-date')?.value||'0');
+  const sort    = document.getElementById('filter-sort')?.value||'newest';
+  const easyOnly = document.getElementById('filter-easy')?.checked;
+  const newOnly  = document.getElementById('filter-new')?.checked;
+  const cutoff   = days ? Date.now() - days * 86400000 : 0;
+
+  let filtered = jobs.filter(j => {
+    if (kw && !((j.title||'').toLowerCase().includes(kw) || (j.company||'').toLowerCase().includes(kw))) return false;
+    if (site && j.site !== site) return false;
+    if (easyOnly && !j.easy_apply) return false;
+    if (newOnly && j.status === 'applied') return false;
+    if (cutoff) {
+      // Prefer actual posting date; fall back to scrape date
+      const raw = (j.date_posted && j.date_posted.length > 5) ? j.date_posted : j.date_found;
+      if (raw) {
+        const t = new Date(raw.endsWith('Z') ? raw : raw + 'Z').getTime();
+        if (t < cutoff) return false;
+      }
+    }
+    return true;
+  });
+
+  // Sort
+  if (sort === 'newest')  filtered.sort((a,b) => (b.date_found||'').localeCompare(a.date_found||''));
+  if (sort === 'oldest')  filtered.sort((a,b) => (a.date_found||'').localeCompare(b.date_found||''));
+  if (sort === 'company') filtered.sort((a,b) => (a.company||'').localeCompare(b.company||''));
+  if (sort === 'title')   filtered.sort((a,b) => (a.title||'').localeCompare(b.title||''));
+
+  // Update filter summary
+  const active = [kw&&'keyword', site&&'site', days&&'date', easyOnly&&'Easy Apply', newOnly&&'not applied'].filter(Boolean);
+  const sum = document.getElementById('filter-summary');
+  if (sum) {
+    if (active.length) {
+      sum.style.display = 'block';
+      sum.innerHTML = `Showing <strong>${filtered.length}</strong> of ${jobs.length} jobs &nbsp;·&nbsp; Filtered by: ${active.join(', ')} &nbsp;<button onclick="clearFilters()" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11.5px;padding:0">Clear filters</button>`;
+    } else {
+      sum.style.display = filtered.length < jobs.length ? 'block' : 'none';
+      if (filtered.length < jobs.length) sum.textContent = `Showing ${filtered.length} of ${jobs.length} jobs`;
+    }
+  }
+
+  renderJobCards(filtered);
+  updateApplyBanner(filtered);
+}
+
+function clearFilters() {
+  const ids = ['filter-kw','filter-site','filter-date'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const easy = document.getElementById('filter-easy'); if (easy) easy.checked = false;
+  const nw   = document.getElementById('filter-new');  if (nw)   nw.checked  = true;
+  const srt  = document.getElementById('filter-sort'); if (srt)  srt.value   = 'newest';
+  filterJobs();
+}
+
+function updateApplyBanner(list) {
+  const newJobs = (list || jobs).filter(j => j.status !== 'applied');
+  const banner = document.getElementById('apply-banner');
+  if (!banner) return;
+  banner.style.display = newJobs.length > 0 ? 'flex' : 'none';
+  const nc = document.getElementById('new-count');
+  if (nc) nc.textContent = newJobs.length;
+}
+
+function renderJobCards(list) {
+  const c = document.getElementById('jobs-container');
+  if (!c) return;
+  if (!list.length) {
+    const hasFilters = jobs.length > 0;
+    c.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><h3>No jobs match your filters</h3><p>Try adjusting the filters or run a new search.</p>${hasFilters ? `<button class="btn btn-secondary" style="margin-top:12px" onclick="clearFilters()">Clear all filters</button>` : ''}</div>`;
+    return;
+  }
+  c.innerHTML = `<div class="jobs-list">${list.map(j => `
+    <div class="job-card ${selectedJobs.has(j.id)?'selected':''}" id="jc-${j.id}">
+      <input type="checkbox" class="jcb" ${selectedJobs.has(j.id)?'checked':''} onchange="toggleSel(${j.id},this)">
+      <div class="jinfo">
+        <div class="jtitle">${esc(j.title)}</div>
+        <div class="jcomp">${esc(j.company)}</div>
+        <div class="jmeta">
+          <span class="badge ${j.site}">${j.site}</span>
+          ${j.location?`<span class="jtag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(j.location)}</span>`:''}
+          ${j.salary?`<span class="jtag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>${esc(j.salary)}</span>`:''}
+          ${j.easy_apply?'<span class="badge easy">Easy Apply</span>':''}
+          <span class="badge ${j.status||'new'}">${j.status||'new'}</span>
+          ${(j.date_posted&&j.date_posted.length>5)?`<span class="jtag" style="margin-left:auto;color:var(--muted);font-size:11px" title="Posted: ${j.date_posted.replace('T',' ').slice(0,16)} UTC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Posted ${timeAgo(j.date_posted)}</span>`:(j.date_found?`<span class="jtag" style="margin-left:auto;color:var(--muted);font-size:11px;opacity:.55" title="Scraped: ${j.date_found.replace('T',' ').slice(0,16)} UTC (post date unavailable)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>found ${timeAgo(j.date_found)}</span>`:'')}
+        </div>
+      </div>
+      <div class="jactions">
+        <button class="btn btn-secondary btn-sm" onclick="showCoverLetter(${j.id})" title="Generate cover letter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </button>
+        <a href="${esc(j.url)}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+        <button class="btn btn-primary btn-sm" onclick="applySingle(${j.id})" id="ab-${j.id}" ${j.status==='applied'?'disabled':''}>
+          ${j.status==='applied'?'Applied':'Apply'}
+        </button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function toggleSel(id, cb) {
+  if (cb.checked) selectedJobs.add(id); else selectedJobs.delete(id);
+  document.getElementById(`jc-${id}`)?.classList.toggle('selected', cb.checked);
+  const sc = document.getElementById('sel-count');
+  if (sc) sc.textContent = selectedJobs.size;
+}
+function selectAll() {
+  document.querySelectorAll('.jcb').forEach(cb => {
+    const id = parseInt(cb.closest('.job-card').id.replace('jc-',''));
+    cb.checked = true; selectedJobs.add(id);
+    cb.closest('.job-card').classList.add('selected');
+  });
+  const sc = document.getElementById('sel-count');
+  if (sc) sc.textContent = selectedJobs.size;
+}
+function clearSel() {
+  selectedJobs.clear();
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.jcb').forEach(c => c.checked = false);
+  const sc = document.getElementById('sel-count');
+  if (sc) sc.textContent = 0;
+}
+
+async function applySingle(jobId) {
+  const btn = document.getElementById(`ab-${jobId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  showOverlay();
+  try {
+    const r = await api('POST', `/api/jobs/${jobId}/apply`);
+    if (r.status === 'applied') toast('Application submitted!', 'success');
+    else toast('Opened in browser — manual action needed', 'warning');
+    await loadFeedJobs();
+    refreshStats();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply'; }
+  }
+}
+
+async function applyAll() {
+  const newJobs = jobs.filter(j => j.status !== 'applied');
+  if (!newJobs.length) { toast('No new jobs to apply to', 'warning'); return; }
+  if (!confirm(`Apply to all ${newJobs.length} job(s) using Claude AI?\n\nClaude will open the browser and submit each application automatically.`)) return;
+  // Show stop button during apply run
+  const stop = document.getElementById('stop-btn');
+  const applyBtn = document.getElementById('apply-all-btn');
+  if (stop)    { stop.style.display = ''; stop.disabled = false; }
+  if (applyBtn){ applyBtn.disabled = true; applyBtn.textContent = 'Applying…'; }
+  showOverlay();
+  try {
+    await api('POST', '/api/apply-all');
+    // apply_all_done WS event handles reset
+  } catch(e) {
+    toast(e.message, 'error');
+    if (stop)    stop.style.display = 'none';
+    if (applyBtn){ applyBtn.disabled = false; applyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Apply All New (<span id="new-count">0</span>)'; }
+  }
+}
+
+async function applySelected() {
+  if (!selectedJobs.size) { toast('Select some jobs first', 'warning'); return; }
+  const ids = [...selectedJobs];
+  if (!confirm(`Apply to ${ids.length} selected job(s) using Claude AI?`)) return;
+  showOverlay();
+  try {
+    await api('POST', '/api/jobs/apply-batch', { job_ids: ids });
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function showCoverLetter(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  openModal(`<div class="modal-title">Cover Letter — ${esc(job.title)}</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(job.company)}</p>
+    <div class="cover-letter-box" id="cl-box">Generating with Claude…</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="copyText('cl-box')">Copy</button>
+      <button class="btn btn-secondary" onclick="closeModalF()">Close</button>
+    </div>`);
+  try {
+    const r = await api('POST', `/api/ai/cover-letter/${jobId}`);
+    document.getElementById('cl-box').textContent = r.cover_letter;
+  } catch(e) {
+    document.getElementById('cl-box').textContent = `Error: ${e.message}. Make sure your Anthropic API key is set in Settings → AI.`;
+  }
+}
+
+function copyText(elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => toast('Copied!', 'success'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRACKER
+// ─────────────────────────────────────────────────────────────────────────────
+async function renderTracker() {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div class="tabs">
+    <div class="tab active" onclick="loadApps('',this)">All</div>
+    <div class="tab" onclick="loadApps('applied',this)">Applied</div>
+    <div class="tab" onclick="loadApps('interviewing',this)">Interviewing</div>
+    <div class="tab" onclick="loadApps('offered',this)">Offered</div>
+    <div class="tab" onclick="loadApps('rejected',this)">Rejected</div>
+  </div>
+  <div id="apps-list"><div style="text-align:center;padding:32px;color:var(--muted)">Loading…</div></div>`;
+  await loadApps('');
+}
+
+async function loadApps(status, tabEl) {
+  if (tabEl) { document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); tabEl.classList.add('active'); }
+  try {
+    applications = await api('GET', `/api/applications${status?'?status='+status:''}`);
+    const c = document.getElementById('apps-list');
+    if (!c) return;
+    if (!applications.length) {
+      c.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><h3>No applications here</h3><p>Applications appear here after you apply to jobs.</p></div>`;
+      return;
+    }
+    c.innerHTML = `<div class="jobs-list">${applications.map(a => `
+      <div class="job-card" style="cursor:default">
+        <div class="jinfo">
+          <div class="jtitle">${esc(a.title)}</div>
+          <div class="jcomp">${esc(a.company)}</div>
+          <div class="jmeta" style="margin-top:6px">
+            <span class="badge ${a.site}">${a.site}</span>
+            <span class="badge ${a.status}">${a.status}</span>
+            <span style="font-size:12px;color:var(--muted)">${new Date(a.applied_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
+            ${a.response?`<span style="font-size:12px;color:var(--muted)">${esc(a.response)}</span>`:''}
+          </div>
+        </div>
+        <div class="jactions">
+          <select class="form-select" style="font-size:12.5px;padding:5px 8px" onchange="updateApp(${a.id},this.value)">
+            <option ${a.status==='applied'?'selected':''} value="applied">Applied</option>
+            <option ${a.status==='interviewing'?'selected':''} value="interviewing">Interviewing</option>
+            <option ${a.status==='offered'?'selected':''} value="offered">Offered</option>
+            <option ${a.status==='rejected'?'selected':''} value="rejected">Rejected</option>
+            <option ${a.status==='withdrawn'?'selected':''} value="withdrawn">Withdrawn</option>
+          </select>
+        </div>
+      </div>`).join('')}</div>`;
+  } catch(e) { document.getElementById('apps-list').innerHTML = `<div class="empty"><h3>Error</h3><p>${esc(e.message)}</p></div>`; }
+}
+
+async function updateApp(id, status) {
+  try { await api('PATCH', `/api/applications/${id}`, { status }); toast('Status updated', 'success'); refreshStats(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SITES PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const SITE_DEFS = {
+  linkedin:  { label:'LI', color:'#1D4ED8', bg:'#DBEAFE', header:'#2563EB',
+               name:'LinkedIn',   desc:'World\'s largest professional network',
+               url:'https://linkedin.com', warn: null },
+  naukri:    { label:'NK', color:'#92400E', bg:'#FEF3C7', header:'#F59E0B',
+               name:'Naukri',     desc:'India\'s #1 job portal',
+               url:'https://naukri.com', warn: null },
+  indeed:    { label:'IN', color:'#065F46', bg:'#D1FAE5', header:'#059669',
+               name:'Indeed',     desc:'Search millions of jobs worldwide',
+               url:'https://indeed.com', warn: null },
+  glassdoor: { label:'GD', color:'#5B21B6', bg:'#EDE9FE', header:'#7C3AED',
+               name:'Glassdoor',  desc:'Jobs + company reviews & salaries',
+               url:'https://glassdoor.co.in',
+               warn: 'Glassdoor uses Cloudflare bot protection. After adding credentials, solve the challenge manually in the browser once — your session is then saved permanently.' },
+  instahyre: { label:'IH', color:'#9D174D', bg:'#FCE7F3', header:'#EC4899',
+               name:'Instahyre',  desc:'AI-powered hiring for tech roles',
+               url:'https://instahyre.com', warn: null },
+};
+
+async function renderSites() {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted)">Loading…</div>`;
+
+  let creds = [];
+  try { creds = await api('GET', '/api/credentials'); } catch(_) {}
+  const cm = {}; creds.forEach(cr => cm[cr.site] = cr);
+
+  const cards = Object.entries(SITE_DEFS).map(([site, def]) => {
+    const connected = !!cm[site];
+    return `
+    <div class="site-card ${connected ? 'connected' : ''}" id="sc-${site}">
+      <div class="site-card-header" style="background:${def.header}"></div>
+      <div class="site-card-body">
+        <div class="site-logo" style="background:${def.bg};color:${def.color}">${def.label}</div>
+        <div class="site-card-info">
+          <div class="site-card-name">${def.name}</div>
+          <div class="site-card-desc">${def.desc}</div>
+          <div class="site-status-badge ${connected ? 'conn' : 'disc'}">
+            <span class="sdot"></span>${connected ? 'Connected' : 'Not connected'}
+          </div>
+        </div>
+        <div class="site-card-action">
+          ${connected
+            ? `<button class="btn btn-danger btn-sm" id="site-btn-${site}" onclick="siteDisconnect('${site}')">Disconnect</button>`
+            : `<button class="btn btn-primary btn-sm" id="site-btn-${site}" onclick="siteConnect('${site}')">Connect</button>`
+          }
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Build custom site cards
+  let customSites = [];
+  try { customSites = await api('GET', '/api/sites/custom'); } catch(_) {}
+
+  const customCards = customSites.map(s => {
+    const connected = !!cm[s.key];
+    return `
+    <div class="site-card ${connected ? 'connected' : ''}" id="sc-${s.key}">
+      <div class="site-card-header" style="background:${s.color}"></div>
+      <div class="site-card-body">
+        <div class="site-logo" style="background:${s.bg};color:${s.color}">${esc(s.label || s.name.slice(0,2).toUpperCase())}</div>
+        <div class="site-card-info">
+          <div class="site-card-name">${esc(s.name)}</div>
+          <div class="site-card-desc" style="font-size:11px;color:var(--muted)">${esc(s.base_url)}</div>
+          <div class="site-status-badge ${connected ? 'conn' : 'disc'}">
+            <span class="sdot"></span>${connected ? 'Connected' : 'Not connected'}
+          </div>
+        </div>
+        <div class="site-card-action" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          ${connected
+            ? `<button class="btn btn-danger btn-sm" id="site-btn-${s.key}" onclick="siteDisconnect('${s.key}', true)">Disconnect</button>`
+            : `<button class="btn btn-primary btn-sm" id="site-btn-${s.key}" onclick="siteConnect('${s.key}', true)">Connect</button>`
+          }
+          <button class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);font-size:11px;padding:2px 8px" onclick="deleteCustomSite('${s.key}', '${esc(s.name)}')">Remove</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  c.innerHTML = `
+    <div style="font-size:13.5px;color:var(--muted);margin-bottom:16px">Sign in once — your session is saved and reused automatically.</div>
+    <div class="sites-grid">${cards}${customCards}</div>
+
+    <!-- Add custom site -->
+    <div id="add-site-card" style="margin-top:18px">
+      <!-- Collapsed trigger -->
+      <button id="add-site-trigger" onclick="toggleAddSiteForm()"
+        style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+               padding:13px;border:2px dashed var(--border);border-radius:var(--rlg);
+               background:transparent;color:var(--muted);font-size:13.5px;font-weight:500;
+               cursor:pointer;transition:all .15s;font-family:var(--font)"
+        onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)';this.style.background='var(--blue-light)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';this.style.background='transparent'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add a Job Site
+      </button>
+
+      <!-- Expanded form -->
+      <div id="add-site-form" style="display:none">
+        <div class="card" style="margin-top:0;border:2px solid var(--blue);border-radius:var(--rlg);padding:20px">
+
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+            <div>
+              <div style="font-size:15px;font-weight:700">Add a Job Site</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">JobPilot will search &amp; auto-apply on any site you add</div>
+            </div>
+            <button onclick="toggleAddSiteForm()" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:4px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <!-- Quick-pick suggestions -->
+          <div style="margin-bottom:16px">
+            <div style="font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Popular sites</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px" id="site-suggestions">
+              ${[
+                {name:'Wellfound',url:'https://wellfound.com',search:'https://wellfound.com/role/r/{keywords}'},
+                {name:'Foundit',url:'https://www.foundit.in',search:'https://www.foundit.in/srp/results?query={keywords}&location={location}'},
+                {name:'TimesJobs',url:'https://www.timesjobs.com',search:'https://www.timesjobs.com/candidate/job-search.html?txtKeywords={keywords}&txtLocation={location}'},
+                {name:'Shine',url:'https://www.shine.com',search:'https://www.shine.com/job-search/{keywords}-jobs?city={location}'},
+                {name:'Hirist',url:'https://www.hirist.tech',search:'https://www.hirist.tech/search/{keywords}'},
+                {name:'iimjobs',url:'https://www.iimjobs.com',search:'https://www.iimjobs.com/j/{keywords}-jobs'},
+                {name:'Remote.co',url:'https://remote.co',search:'https://remote.co/remote-jobs/search/?search_keywords={keywords}'},
+                {name:'AngelList',url:'https://angel.co',search:'https://angel.co/jobs?keywords={keywords}'},
+              ].map(s => `<button class="btn btn-secondary btn-sm" style="font-size:11.5px;border-radius:20px" onclick="prefillSite('${s.name}','${s.url}','${s.search}')">${s.name}</button>`).join('')}
+            </div>
+          </div>
+
+          <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+
+          <!-- Form + live preview side by side -->
+          <div style="display:grid;grid-template-columns:1fr auto;gap:18px;align-items:start">
+            <div>
+              <!-- Name -->
+              <div style="margin-bottom:11px">
+                <label style="font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px">Site Name *</label>
+                <input id="ns-name" class="form-input" placeholder="e.g. Wellfound" oninput="updateSitePreview()">
+              </div>
+              <!-- URL -->
+              <div style="margin-bottom:11px">
+                <label style="font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px">Homepage URL *</label>
+                <input id="ns-url" class="form-input" placeholder="https://wellfound.com" oninput="updateSitePreview()">
+              </div>
+              <!-- Search URL -->
+              <div style="margin-bottom:14px">
+                <label style="font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:5px">
+                  Search URL *
+                  <span style="font-weight:400;margin-left:6px">
+                    use <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:11px">{keywords}</code>
+                    and <code style="background:var(--bg);padding:1px 5px;border-radius:4px;font-size:11px">{location}</code>
+                  </span>
+                </label>
+                <input id="ns-search" class="form-input" placeholder="https://wellfound.com/role/r/{keywords}" oninput="updateSitePreview()">
+              </div>
+              <!-- Actions -->
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="toggleAddSiteForm()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCustomSite()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  Add Site
+                </button>
+              </div>
+            </div>
+
+            <!-- Live preview -->
+            <div style="width:220px;flex-shrink:0">
+              <div style="font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Preview</div>
+              <div id="site-preview-card" class="site-card" style="pointer-events:none;width:220px">
+                <div class="site-card-header" id="prev-header" style="background:#6366f1"></div>
+                <div class="site-card-body" style="padding:14px">
+                  <div class="site-logo" id="prev-logo" style="background:#eef2ff;color:#6366f1;width:36px;height:36px;font-size:12px">??</div>
+                  <div class="site-card-info">
+                    <div class="site-card-name" id="prev-name" style="font-size:13px">Your Site</div>
+                    <div class="site-card-desc" id="prev-url" style="font-size:10.5px">example.com</div>
+                    <div class="site-status-badge disc" style="margin-top:5px"><span class="sdot"></span>Not connected</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">Activity</div>
+      <div class="log-panel" id="sites-log" style="min-height:50px"><span style="color:rgba(255,255,255,.25)">Login activity will appear here…</span></div>
+    </div>`;
+
+  connectedSites = new Set(Object.keys(cm));
+  const nb = document.getElementById('nb-sites');
+  if (nb) nb.textContent = connectedSites.size;
+}
+
+const PREVIEW_PALETTE = [
+  ['#6366f1','#eef2ff'],['#1D4ED8','#DBEAFE'],['#065F46','#D1FAE5'],
+  ['#92400E','#FEF3C7'],['#5B21B6','#EDE9FE'],['#9D174D','#FCE7F3'],
+  ['#7C2D12','#FED7AA'],['#134E4A','#CCFBF1'],
+];
+let _previewPaletteIdx = 0;
+
+function toggleAddSiteForm() {
+  const f = document.getElementById('add-site-form');
+  const t = document.getElementById('add-site-trigger');
+  const open = f && f.style.display !== 'none';
+  if (f) f.style.display = open ? 'none' : 'block';
+  if (t) t.style.display = open ? 'flex' : 'none';
+  if (!open) { updateSitePreview(); }
+}
+
+function prefillSite(name, url, search) {
+  const ni = document.getElementById('ns-name');
+  const ui = document.getElementById('ns-url');
+  const si = document.getElementById('ns-search');
+  if (ni) ni.value = name;
+  if (ui) ui.value = url;
+  if (si) si.value = search;
+  updateSitePreview();
+}
+
+function updateSitePreview() {
+  const name = document.getElementById('ns-name')?.value.trim() || 'Your Site';
+  const url = document.getElementById('ns-url')?.value.trim().replace(/^https?:\/\//, '') || 'example.com';
+  const words = name.split(/\s+/);
+  const label = words.length > 1
+    ? (words[0][0] + words[1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+  // Pick color deterministically from name char codes
+  const idx = name.charCodeAt(0) % PREVIEW_PALETTE.length;
+  const [color, bg] = PREVIEW_PALETTE[idx];
+  const prevName = document.getElementById('prev-name');
+  const prevUrl  = document.getElementById('prev-url');
+  const prevLogo = document.getElementById('prev-logo');
+  const prevHdr  = document.getElementById('prev-header');
+  if (prevName) prevName.textContent = name;
+  if (prevUrl)  prevUrl.textContent  = url;
+  if (prevLogo) { prevLogo.textContent = label; prevLogo.style.background = bg; prevLogo.style.color = color; }
+  if (prevHdr)  prevHdr.style.background = color;
+}
+
+async function saveCustomSite() {
+  const name   = document.getElementById('ns-name')?.value.trim();
+  const url    = document.getElementById('ns-url')?.value.trim();
+  const search = document.getElementById('ns-search')?.value.trim();
+  if (!name || !url || !search) { toast('Please fill in all three fields', 'error'); return; }
+  const btn = document.querySelector('#add-site-form .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  try {
+    await api('POST', '/api/sites/custom', { name, base_url: url, search_url: search });
+    toast(`${name} added! ✓`, 'success');
+    await renderSites();
+  } catch(e) {
+    toast(`Error: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Add Site'; }
+  }
+}
+
+async function deleteCustomSite(key, name) {
+  if (!confirm(`Remove "${name}" from your job sites?`)) return;
+  try {
+    await api('DELETE', `/api/sites/custom/${key}`);
+    toast(`${name} removed`, 'success');
+    await renderSites();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function getSiteName(site) {
+  return SITE_DEFS[site]?.name || site;
+}
+
+async function siteConnect(site, isCustom = false) {
+  const btn = document.getElementById(`site-btn-${site}`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span style="border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;width:11px;height:11px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Connecting…'; }
+  const name = getSiteName(site);
+  appendLog(`Opening browser for ${name}…`, 'info', 'sites-log');
+  try {
+    await api('POST', `/api/login/${site}/sso`);
+    toast(`Connected to ${name}!`, 'success');
+    appendLog(`✓ Connected to ${name}`, 'success', 'sites-log');
+    await renderSites();
+    await refreshConnectedSites();
+  } catch(e) {
+    // For custom sites: offer a manual "mark as connected" fallback
+    if (isCustom) {
+      appendLog(`Auto-detection timed out for ${name}. If you signed in, use "I've signed in" below.`, 'warning', 'sites-log');
+      if (btn) {
+        btn.disabled = false;
+        btn.style.display = 'none';
+      }
+      // Insert a fallback button next to the card
+      const action = btn?.closest('.site-card-action');
+      if (action && !action.querySelector('.force-connect-btn')) {
+        const fb = document.createElement('div');
+        fb.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end';
+        fb.innerHTML = `
+          <button class="btn btn-sm force-connect-btn" style="background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;font-size:11.5px"
+            onclick="forceConnect('${site}','${name}')">✓ I've signed in</button>
+          <button class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);font-size:11px"
+            onclick="siteConnect('${site}',true)">Retry</button>`;
+        action.appendChild(fb);
+      }
+    } else {
+      toast(`Could not connect: ${e.message}`, 'error');
+      appendLog(`✗ ${name}: ${e.message}`, 'error', 'sites-log');
+      if (btn) { btn.disabled = false; btn.textContent = 'Connect'; }
+    }
+  }
+}
+
+async function forceConnect(site, name) {
+  try {
+    await api('POST', `/api/sites/custom/${site}/force-connect`);
+    toast(`${name} marked as connected ✓`, 'success');
+    appendLog(`✓ ${name} connected (manual)`, 'success', 'sites-log');
+    await renderSites();
+    await refreshConnectedSites();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function siteDisconnect(site, isCustom = false) {
+  const name = getSiteName(site);
+  if (!confirm(`Disconnect ${name}?`)) return;
+  try {
+    await api('DELETE', `/api/credentials/${site}`);
+    toast(`${name} disconnected`, 'success');
+    await renderSites();
+    await refreshConnectedSites();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+let settingsTab = 'profile';
+async function renderSettings() {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div class="settings-grid">
+    <div class="settings-nav">
+      <div class="settings-nav-item active" id="stab-profile" onclick="switchSettingsTab('profile')">Account</div>
+      <div class="settings-nav-item" id="stab-accounts" onclick="switchSettingsTab('accounts')">Job Site Logins</div>
+      <div class="settings-nav-item" id="stab-ai" onclick="switchSettingsTab('ai')">AI (Claude)</div>
+      <div class="settings-nav-item" id="stab-data" onclick="switchSettingsTab('data')">Data</div>
+    </div>
+    <div id="settings-panel"></div>
+  </div>`;
+  await switchSettingsTab(settingsTab);
+}
+
+async function switchSettingsTab(tab) {
+  settingsTab = tab;
+  document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`stab-${tab}`)?.classList.add('active');
+  if (tab === 'profile') await renderProfileTab();
+  if (tab === 'accounts') await renderAccountsTab();
+  if (tab === 'ai') await renderAITab();
+  if (tab === 'data') renderDataTab();
+}
+
+function renderDataTab() {
+  document.getElementById('settings-panel').innerHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">Job Database</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">
+      JobPilot automatically removes jobs older than 10 days each time the backend starts.
+      Use the button below to manually clear all stored jobs and start fresh.
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div id="db-job-count" style="font-size:13px;color:var(--muted)">Loading…</div>
+      <button class="btn btn-danger" style="min-width:160px" onclick="clearAllJobs()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        Clear All Jobs
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">Auto-cleanup Policy</div>
+    <div style="color:var(--muted);font-size:13px">
+      Jobs older than <strong>10 days</strong> are deleted automatically on each startup.<br>
+      Only jobs found within the last 10 days are kept in the database.
+    </div>
+  </div>`;
+  // Show current count
+  api('GET', '/api/stats').then(s => {
+    const el = document.getElementById('db-job-count');
+    if (el) el.textContent = `${s.total_jobs || 0} job(s) currently stored`;
+  }).catch(() => {});
+}
+
+async function clearAllJobs() {
+  if (!confirm('Delete all stored jobs? This cannot be undone. Run a new search to repopulate.')) return;
+  try {
+    const r = await api('DELETE', '/api/jobs/all');
+    toast(r.message || 'Jobs cleared', 'success');
+    jobs = [];
+    if (currentPage === 'feed') loadFeedJobs();
+    refreshStats();
+    renderDataTab(); // refresh count
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+// ── Account tab ──
+async function renderProfileTab() {
+  let p = {}, aiStatus = {};
+  try { p = await api('GET', '/api/profile'); } catch(_) {}
+  try { aiStatus = await api('GET', '/api/ai/status'); } catch(_) {}
+  profileSkills = p.skills || [];
+  const hasPassword = !!(p.password_hash); // won't be in response; use list_profiles later
+  // Fetch has_password from list
+  let profiles = [];
+  try { profiles = await api('GET', '/api/profiles'); } catch(_) {}
+  const me = profiles.find(pr => pr.is_active) || {};
+
+  document.getElementById('settings-panel').innerHTML = `
+
+  <!-- ── Account header ── -->
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <!-- Avatar with upload -->
+      <div class="av-upload-wrap" onclick="document.getElementById('avatar-file-input-acct').click()" title="Change photo">
+        ${p.avatar_path
+          ? `<div class="av-large" style="background:${profColor(p.id)}"><img src="/api/profiles/${p.id}/avatar?t=${Date.now()}" alt="avatar"></div>`
+          : `<div class="av-large" style="background:${profColor(p.id)}">${profInitials(p)}</div>`
+        }
+        <div class="av-camera-overlay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <input type="file" id="avatar-file-input-acct" accept="image/*" style="display:none" onchange="uploadAvatarFile(${p.id}, this)">
+      </div>
+      <!-- Name + title inline edit -->
+      <div style="flex:1;min-width:180px">
+        <input id="acct-hdr-name" value="${esc(p.profile_name || '')}" placeholder="Profile name" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 11px;font-size:15px;font-weight:700;background:var(--white);color:var(--text);margin-bottom:7px;box-sizing:border-box">
+        <input id="acct-hdr-title" value="${esc(p.current_title || '')}" placeholder="Current job title" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 11px;font-size:13px;background:var(--white);color:var(--text);box-sizing:border-box">
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="saveAccountHeader()">Save</button>
+        <button class="btn" style="margin-left:6px" onclick="openAccountsModal()">Switch account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Resume upload ── -->
+  <div class="card" style="margin-bottom:14px;border:2px dashed ${p.resume_path ? 'var(--green)' : 'var(--border)'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:14.5px;font-weight:700;margin-bottom:3px">Resume</div>
+        <div style="font-size:12.5px;color:var(--muted)">Claude reads it and fills your profile automatically</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="hidden" id="p-res" value="${esc(p.resume_path||'')}">
+        <label style="cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:var(--r);font-size:13.5px;font-weight:600;background:var(--blue);color:#fff;transition:opacity .13s" onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          ${p.resume_path ? 'Replace' : 'Upload PDF / DOCX'}
+          <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="uploadResume(this)">
+        </label>
+        <span id="resume-filename" style="font-size:13px;font-weight:500;color:var(--text)">${p.resume_path ? '📄 ' + esc(p.resume_path.split('/').pop()) : '<span style="color:var(--muted)">No file yet</span>'}</span>
+        ${p.resume_path ? `<button class="btn btn-secondary" onclick="parseResume()" id="parse-btn" style="font-size:12.5px;height:34px">Re-parse with AI</button>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Personal Info ── -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Personal Information <span style="font-size:11px;font-weight:400;color:var(--muted)">· stored encrypted</span></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="p-name" value="${esc(p.full_name||'')}"></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="p-email" type="email" value="${esc(p.email||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="p-phone" value="${esc(p.phone||'')}"></div>
+      <div class="form-group"><label class="form-label">Location</label><input class="form-input" id="p-location" value="${esc(p.location||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">LinkedIn URL</label><input class="form-input" id="p-li" value="${esc(p.linkedin_url||'')}"></div>
+      <div class="form-group"><label class="form-label">GitHub URL</label><input class="form-input" id="p-gh" value="${esc(p.github_url||'')}"></div>
+    </div>
+  </div>
+
+  <!-- ── Job Preferences ── -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Job Preferences</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Desired Title <span style="font-size:11px;color:var(--muted)">(for search)</span></label><input class="form-input" id="p-des" value="${esc(p.desired_title||'')}"></div>
+      <div class="form-group"><label class="form-label">Expected CTC / Salary</label><input class="form-input" id="p-sal" value="${esc(p.desired_salary||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Years of Experience</label><input class="form-input" id="p-exp" type="number" min="0" max="50" value="${p.years_experience||0}"></div>
+      <div class="form-group"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Skills</label>
+      <div class="skills-wrap" id="sw" onclick="document.getElementById('si').focus()">
+        ${profileSkills.map(s=>`<span class="skill-tag">${esc(s)}<button onclick="rmSkill('${esc(s)}')" type="button">×</button></span>`).join('')}
+        <input class="skill-input" id="si" placeholder="Type skill, press Enter" onkeydown="addSkill(event)">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Professional Summary</label><textarea class="form-textarea" id="p-sum" rows="3">${esc(p.summary||'')}</textarea></div>
+    <button class="btn btn-primary" onclick="saveProfile()">Save Profile</button>
+  </div>
+
+  <!-- ── Security ── -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Security</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+      Set a password to protect this account — required on the login page and when switching to it from another account.
+    </div>
+    ${me.has_password
+      ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+           <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+           <span style="font-size:13px;font-weight:600;color:var(--green)">Password is set</span>
+         </div>
+         <div class="form-row">
+           <div class="form-group"><label class="form-label">Current Password</label><input class="form-input" type="password" id="sec-cur-pw" placeholder="Current password"></div>
+           <div class="form-group"><label class="form-label">New Password</label><input class="form-input" type="password" id="sec-new-pw" placeholder="New password (blank = remove)"></div>
+         </div>`
+      : `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+           <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+           <span style="font-size:13px;color:var(--muted)">No password — anyone can access this account</span>
+         </div>
+         <div class="form-group" style="max-width:300px"><label class="form-label">Set a Password</label><input class="form-input" type="password" id="sec-new-pw" placeholder="New password"></div>`
+    }
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="saveAccountPassword(${p.id})">
+        ${me.has_password ? 'Update Password' : 'Set Password'}
+      </button>
+      ${me.has_password ? `<button class="btn btn-danger" onclick="removeAccountPassword(${p.id})">Remove Password</button>` : ''}
+    </div>
+  </div>
+
+  <!-- ── Claude AI Key ── -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Claude AI Key <span style="font-size:11px;font-weight:400;color:var(--muted)">· private to this account · stored encrypted</span></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
+      This key is exclusive to <strong>${esc(p.profile_name || 'this account')}</strong>.
+      Switching to another account uses that account's own key.
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      ${aiStatus.profile_has_key
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+           <span style="font-size:13px;font-weight:600;color:var(--green)">Key saved</span>
+           <code style="font-size:12px;background:var(--bg);padding:2px 8px;border-radius:5px;color:var(--muted)">${esc(aiStatus.key_preview || '…')}</code>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+           <span style="font-size:13px;color:var(--muted)">No key set</span>`
+      }
+    </div>
+    <div class="form-group" style="max-width:420px">
+      <label class="form-label">Anthropic API Key</label>
+      <input class="form-input" type="password" id="ai-key" placeholder="sk-ant-api03-…" autocomplete="off">
+      <div class="form-hint">Get your key at <a href="https://console.anthropic.com/api-keys" target="_blank" style="color:var(--blue)">console.anthropic.com</a></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveAIKey()">Save API Key</button>
+  </div>
+
+  <!-- ── Danger Zone ── -->
+  <div class="card" style="margin-bottom:14px;border-color:rgba(239,68,68,.3)">
+    <div class="card-title" style="color:var(--red)">Danger Zone</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13.5px;font-weight:600">Delete this account</div>
+        <div style="font-size:12.5px;color:var(--muted)">Permanently removes this profile, its credentials, and job history.</div>
+      </div>
+      <button class="btn btn-danger" onclick="deleteAccountById(${p.id})">Delete Account</button>
+    </div>
+  </div>`;
+}
+
+async function saveAccountHeader() {
+  const name  = document.getElementById('acct-hdr-name')?.value.trim();
+  const title = document.getElementById('acct-hdr-title')?.value.trim();
+  if (!name) { toast('Profile name cannot be empty', 'error'); return; }
+  try {
+    await api('POST', '/api/profile', { profile_name: name, current_title: title });
+    await initProfileAvatar();
+    toast('Account updated', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function saveAccountPassword(profileId) {
+  const cur = document.getElementById('sec-cur-pw')?.value || '';
+  const nw  = document.getElementById('sec-new-pw')?.value || '';
+  if (!nw) { toast('Enter a new password', 'warning'); return; }
+  try {
+    await api('POST', `/api/profiles/${profileId}/set-password`, { current_password: cur, password: nw });
+    toast('Password set', 'success');
+    renderProfileTab();
+  } catch(e) { toast(e.message || 'Failed', 'error'); }
+}
+
+async function removeAccountPassword(profileId) {
+  const cur = document.getElementById('sec-cur-pw')?.value || '';
+  if (!confirm('Remove the password from this account?')) return;
+  try {
+    await api('POST', `/api/profiles/${profileId}/set-password`, { current_password: cur, password: '' });
+    toast('Password removed', 'success');
+    renderProfileTab();
+  } catch(e) { toast(e.message || 'Incorrect current password', 'error'); }
+}
+
+function addSkill(e) {
+  if (e.key !== 'Enter' && e.key !== ',') return;
+  e.preventDefault();
+  const v = e.target.value.replace(',','').trim();
+  if (v && !profileSkills.includes(v)) { profileSkills.push(v); rebuildSkills(); }
+  e.target.value = '';
+}
+function rmSkill(s) { profileSkills = profileSkills.filter(x=>x!==s); rebuildSkills(); }
+function rebuildSkills() {
+  const sw = document.getElementById('sw');
+  if (!sw) return;
+  sw.innerHTML = profileSkills.map(s=>`<span class="skill-tag">${esc(s)}<button onclick="rmSkill('${esc(s)}')" type="button">×</button></span>`).join('') +
+    `<input class="skill-input" id="si" placeholder="Type skill, press Enter" onkeydown="addSkill(event)">`;
+  document.getElementById('si')?.focus();
+}
+
+async function saveProfile() {
+  const data = {
+    full_name: document.getElementById('p-name').value,
+    email: document.getElementById('p-email').value,
+    phone: document.getElementById('p-phone').value,
+    location: document.getElementById('p-location').value,
+    linkedin_url: document.getElementById('p-li').value,
+    github_url: document.getElementById('p-gh').value,
+    current_title: document.getElementById('p-cur').value,
+    desired_title: document.getElementById('p-des').value,
+    years_experience: parseInt(document.getElementById('p-exp').value)||0,
+    desired_salary: document.getElementById('p-sal').value,
+    resume_path: document.getElementById('p-res').value,
+    skills: profileSkills,
+    summary: document.getElementById('p-sum').value,
+  };
+  try { await api('POST', '/api/profile', data); toast('Profile saved', 'success'); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function uploadResume(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label = input.closest('label');
+  if (label) { label.style.opacity = '.5'; label.style.pointerEvents = 'none'; }
+  const fnEl = document.getElementById('resume-filename');
+
+  try {
+    // Step 1 — upload file
+    if (fnEl) fnEl.innerHTML = '<span style="color:var(--muted)">Uploading…</span>';
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch(`${API}/api/upload-resume`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || 'Upload failed');
+    const data = await r.json();
+    document.getElementById('p-res').value = data.path;
+    if (fnEl) fnEl.innerHTML = `📄 <strong>${esc(file.name)}</strong>`;
+
+    // Step 2 — save just the resume path (don't touch other fields)
+    if (fnEl) fnEl.innerHTML = `📄 <strong>${esc(file.name)}</strong> <span style="color:var(--muted);font-size:12px">— saving…</span>`;
+    const existingProfile = await api('GET', '/api/profile').catch(() => ({}));
+    await api('POST', '/api/profile', { ...existingProfile, resume_path: data.path, skills: existingProfile.skills || [] });
+
+    // Step 3 — extract everything from the resume with Claude
+    if (fnEl) fnEl.innerHTML = `📄 <strong>${esc(file.name)}</strong> <span style="color:var(--blue);font-size:12px">— reading with AI…</span>`;
+    await parseResume();
+
+    if (fnEl) fnEl.innerHTML = `📄 <strong>${esc(file.name)}</strong> <span style="color:var(--green);font-size:12px">— profile filled ✓</span>`;
+  } catch(e) {
+    toast(`Resume error: ${e.message}`, 'error');
+    if (fnEl) fnEl.innerHTML = `<span style="color:var(--red)">Error: ${esc(e.message)}</span>`;
+  } finally {
+    if (label) { label.style.opacity = '1'; label.style.pointerEvents = ''; }
+  }
+}
+
+function clearResume() {
+  document.getElementById('p-res').value = '';
+  const fnEl = document.getElementById('resume-filename');
+  if (fnEl) fnEl.innerHTML = '<span style="color:var(--muted)">No file uploaded</span>';
+  toast('Resume removed', 'success');
+}
+
+async function parseResume() {
+  const btn = document.getElementById('parse-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Parsing…'; }
+  try {
+    const r = await api('POST', '/api/ai/parse-resume');
+    const ext = r.extracted;
+    // Merge non-empty extracted values into the form
+    if (ext.full_name) document.getElementById('p-name').value = ext.full_name;
+    if (ext.email) document.getElementById('p-email').value = ext.email;
+    if (ext.phone) document.getElementById('p-phone').value = ext.phone;
+    if (ext.location) document.getElementById('p-location').value = ext.location;
+    if (ext.linkedin_url) document.getElementById('p-li').value = ext.linkedin_url;
+    if (ext.github_url) document.getElementById('p-gh').value = ext.github_url;
+    if (ext.current_title) document.getElementById('p-cur').value = ext.current_title;
+    if (ext.years_experience) document.getElementById('p-exp').value = ext.years_experience;
+    if (ext.summary) document.getElementById('p-sum').value = ext.summary;
+    if (ext.skills?.length) { profileSkills = [...new Set([...profileSkills, ...ext.skills])]; rebuildSkills(); }
+    // Auto-save the extracted data immediately
+    await saveProfile();
+    toast('Profile filled from resume ✓', 'success');
+  } catch(e) {
+    toast(`Parse failed: ${e.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Re-parse Resume'; }
+  }
+}
+
+// ── Accounts tab ──
+const SITE_META = {
+  linkedin:  { color:'#1D4ED8', bg:'#DBEAFE', label:'LI' },
+  naukri:    { color:'#92400E', bg:'#FEF3C7', label:'NK' },
+  indeed:    { color:'#065F46', bg:'#D1FAE5', label:'IN' },
+  glassdoor: { color:'#5B21B6', bg:'#EDE9FE', label:'GD' },
+  instahyre: { color:'#9D174D', bg:'#FCE7F3', label:'IH' },
+};
+
+async function renderAccountsTab() {
+  // Redirect to the dedicated Sites page instead of duplicating UI
+  document.getElementById('settings-panel').innerHTML = `
+    <div class="card" style="text-align:center;padding:32px">
+      <div style="width:48px;height:48px;background:var(--blue-light);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">Manage on the Job Sites page</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:18px;max-width:280px;margin-left:auto;margin-right:auto">
+        Add, edit, and login to all your job site accounts from the dedicated Job Sites page — with per-site status, inline forms, and session logs.
+      </p>
+      <button class="btn btn-primary" onclick="go('sites')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Go to Job Sites
+      </button>
+    </div>`;
+}
+
+// ── AI tab — now just an info panel, key is managed per-account ──
+async function renderAITab() {
+  let aiStatus = { ready: false, has_key: false };
+  try { aiStatus = await api('GET', '/api/ai/status'); } catch(_) {}
+  document.getElementById('settings-panel').innerHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div class="ai-status ${aiStatus.ready?'ready':'missing'}">
+      ${aiStatus.ready
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg> AI is active for this account'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> No API key set for this account'}
+    </div>
+    <div style="margin-top:12px;font-size:13px;color:var(--muted);line-height:1.6">
+      Claude API keys are now <strong style="color:var(--text)">per-account</strong> — each account has its own private key, stored encrypted.
+      To add or change the key for the active account, go to the
+      <a href="#" onclick="switchSettingsTab('profile');return false" style="color:var(--blue);font-weight:600">Account tab → Claude AI Key</a>.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">What Claude does</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+      ${[
+        ['Form filling','Reads every question on the application form and generates answers from your profile and the job description — works across all job sites'],
+        ['Cover letters','Writes a targeted, non-generic cover letter for each job you apply to'],
+        ['Resume parsing','Extracts your profile data automatically from your PDF/DOCX resume'],
+        ['Smart answers','Handles tricky questions like "Why are you leaving?", "Expected CTC?", "Notice period?" naturally'],
+      ].map(([t,d]) => `<div style="display:flex;gap:10px">
+        <div style="width:20px;height:20px;background:var(--blue-light);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div><div style="font-size:13.5px;font-weight:600">${t}</div><div style="font-size:12.5px;color:var(--muted);margin-top:1px">${d}</div></div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+async function saveAIKey() {
+  const key = document.getElementById('ai-key')?.value.trim();
+  if (!key || key.startsWith('•')) { toast('Enter a valid API key', 'warning'); return; }
+  try {
+    await api('POST', '/api/ai/key', { key });
+    toast('API key saved!', 'success');
+    renderProfileTab();   // refresh Account tab where the key section lives
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Login page ────────────────────────────────────────────────────────────────
+async function showLoginPage() {
+  let profiles = [];
+  try { profiles = await api('GET', '/api/profiles'); } catch(_) {}
+
+  const grid = document.getElementById('login-profiles-grid');
+  if (!grid) return;
+
+  grid.innerHTML = profiles.map(p => {
+    const hasAv = p.avatar_path;
+    const avInner = hasAv
+      ? `<img src="/api/profiles/${p.id}/avatar?t=${Date.now()}" alt="avatar">`
+      : profInitials(p);
+    const lockBadge = p.has_password
+      ? `<div class="login-lock-badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" width="9" height="9"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>`
+      : '';
+    return `
+    <div class="login-profile-card ${p.is_active ? 'active-login' : ''}" id="lpc-${p.id}" style="position:relative" onclick="handleLoginCardClick(${p.id}, ${!!p.has_password})">
+      <div style="position:relative;display:inline-block">
+        <div class="login-av" style="background:${profColor(p.id)}">${avInner}</div>
+        ${lockBadge}
+      </div>
+      <div>
+        <div class="login-card-name">${esc(p.profile_name || 'Unnamed')}</div>
+        <div class="login-card-title">${esc(p.current_title || p.full_name || 'No title')}</div>
+      </div>
+      ${p.is_active ? '<div class="login-card-badge">Active</div>' : ''}
+    </div>`;
+  }).join('') + `
+  <div class="login-add-card" onclick="loginNewProfile()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <div style="font-size:12.5px;font-weight:600">New Profile</div>
+  </div>`;
+}
+
+function handleLoginCardClick(id, hasPassword) {
+  if (!hasPassword) { loginAsProfile(id); return; }
+  const card = document.getElementById(`lpc-${id}`);
+  if (!card || card.querySelector('.login-pw-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'login-pw-overlay';
+  overlay.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    <div style="color:#fff;font-size:12px;font-weight:600">Enter password</div>
+    <input type="password" id="lpw-${id}" placeholder="Password" autocomplete="current-password">
+    <div style="display:flex;gap:8px;width:100%">
+      <button onclick="event.stopPropagation();submitLoginPassword(${id})" style="flex:1;background:#6366f1;color:#fff;border:none;border-radius:7px;padding:7px 0;font-size:12.5px;font-weight:600;cursor:pointer">Enter →</button>
+      <button onclick="event.stopPropagation();cancelLoginPassword(${id})" style="background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:7px;padding:7px 10px;font-size:12.5px;cursor:pointer">✕</button>
+    </div>`;
+  overlay.onclick = e => e.stopPropagation();
+  card.appendChild(overlay);
+  setTimeout(() => document.getElementById(`lpw-${id}`)?.focus(), 50);
+  document.getElementById(`lpw-${id}`)?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitLoginPassword(id);
+    if (e.key === 'Escape') cancelLoginPassword(id);
+  });
+}
+
+function cancelLoginPassword(id) {
+  document.getElementById(`lpc-${id}`)?.querySelector('.login-pw-overlay')?.remove();
+}
+
+async function submitLoginPassword(id) {
+  const input = document.getElementById(`lpw-${id}`);
+  const pw = input?.value || '';
+  try {
+    await api('POST', `/api/profiles/${id}/verify-password`, { password: pw });
+    loginAsProfile(id);
+  } catch(_) {
+    const overlay = document.getElementById(`lpc-${id}`)?.querySelector('.login-pw-overlay');
+    if (overlay) { overlay.style.animation = 'loginShake .3s ease'; setTimeout(() => { overlay.style.animation = ''; }, 350); }
+    if (input) { input.value = ''; input.focus(); }
+  }
+}
+
+async function loginAsProfile(id) {
+  try { await api('POST', `/api/profiles/${id}/activate`); } catch(_) {}
+  _enterApp();
+}
+
+function skipLoginPage() { _enterApp(); }
+
+function loginNewProfile() {
+  // Show an inline name-input form on the login page instead of prompt()
+  const grid = document.getElementById('login-profiles-grid');
+  if (!grid) return;
+  grid.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0;width:100%;max-width:300px">
+      <div style="color:#fff;font-size:15px;font-weight:700">New Account</div>
+      <input id="login-new-name" type="text" placeholder='e.g. "Senior Backend Engineer"'
+        autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid rgba(255,255,255,.2);border-radius:8px;font-size:14px;background:rgba(255,255,255,.07);color:#fff;outline:none"
+        onfocus="this.style.borderColor='rgba(99,102,241,.8)'" onblur="this.style.borderColor='rgba(255,255,255,.2)'"
+        onkeydown="if(event.key==='Enter')_submitLoginNewProfile()">
+      <div id="login-new-err" style="font-size:12px;color:#f87171;min-height:14px"></div>
+      <button onclick="_submitLoginNewProfile()"
+        style="width:100%;padding:11px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+        Create &amp; Enter
+      </button>
+      <button onclick="showLoginPage()"
+        style="background:none;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;padding:4px">
+        ← Back
+      </button>
+    </div>`;
+  setTimeout(() => document.getElementById('login-new-name')?.focus(), 50);
+}
+
+async function _submitLoginNewProfile() {
+  const name = document.getElementById('login-new-name')?.value.trim();
+  const errEl = document.getElementById('login-new-err');
+  if (!name) { if (errEl) errEl.textContent = 'Enter a name'; return; }
+  try {
+    const created = await api('POST', '/api/profiles', { name });
+    await api('POST', `/api/profiles/${created.id}/activate`);
+    _enterApp();
+  } catch(e) {
+    if (errEl) errEl.textContent = e.message || 'Could not create profile';
+  }
+}
+
+async function reopenLoginPage() {
+  closeAccountsModal();
+  sessionStorage.removeItem('jp_session');
+  const lp = document.getElementById('login-page');
+  lp.classList.remove('hidden');   // ← CRITICAL: re-enable pointer-events
+  lp.style.opacity = '0';
+  lp.style.transition = 'none';
+  lp.style.display = 'flex';
+  await showLoginPage();
+  requestAnimationFrame(() => { lp.style.transition = 'opacity .35s'; lp.style.opacity = '1'; });
+}
+
+function _enterApp() {
+  const page = document.getElementById('login-page');
+  if (page) { page.classList.add('hidden'); setTimeout(() => page.style.display = 'none', 420); }
+  sessionStorage.setItem('jp_session', '1');
+  connectWS();
+  refreshStats();
+  initProfileAvatar();
+  refreshConnectedSites().then(() => go('feed'));
+}
+
+// ── Init ──
+(async () => {
+  // Keep app shell invisible until past login so there's no flash
+  document.querySelector('aside').style.visibility = 'hidden';
+  document.querySelector('main').style.visibility = 'hidden';
+
+  if (!sessionStorage.getItem('jp_session')) {
+    // Fresh session — show profile picker
+    const lp = document.getElementById('login-page');
+    lp.classList.remove('hidden');   // re-enable pointer-events
+    lp.style.display = 'flex';
+    await showLoginPage();           // populates cards
+    requestAnimationFrame(() => {
+      lp.style.transition = 'opacity .35s';
+      lp.style.opacity = '1';
+    });
+    // Reveal app shell behind the overlay
+    document.querySelector('aside').style.visibility = '';
+    document.querySelector('main').style.visibility = '';
+  } else {
+    // Already picked a profile this session — go straight in
+    document.getElementById('login-page').style.display = 'none';
+    document.querySelector('aside').style.visibility = '';
+    document.querySelector('main').style.visibility = '';
+    _enterApp();
+  }
+})();
+</script>
+</body>
+</html>
