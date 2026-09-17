@@ -118,6 +118,14 @@ def init_db():
             created_at TEXT,
             done_at TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS job_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            sentiment TEXT NOT NULL DEFAULT 'useful',
+            comment TEXT DEFAULT '',
+            created_at TEXT
+        );
         """)
 
         # ── Migrations for existing databases ──────────────────────────────────
@@ -609,7 +617,9 @@ def create_reminder(job_id: int, reminder_type: str, due_at: str, note: str = ''
             (job_id, reminder_type, due_at, note, created),
         )
         row = conn.execute("SELECT * FROM reminders WHERE id=?", (cur.lastrowid,)).fetchone()
-        return dict(row)
+        result = dict(row)
+        result["type"] = result.get("reminder_type")
+        return result
 
 
 def list_reminders(status: str = None, job_id: int = None) -> List[Dict[str, Any]]:
@@ -624,7 +634,12 @@ def list_reminders(status: str = None, job_id: int = None) -> List[Dict[str, Any
     query += " ORDER BY due_at ASC"
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["type"] = d.get("reminder_type")
+            result.append(d)
+        return result
 
 
 def mark_reminder_done(reminder_id: int) -> Dict[str, Any]:
@@ -638,6 +653,76 @@ def mark_reminder_done(reminder_id: int) -> Dict[str, Any]:
     if row:
         return {"id": row["id"], "done": True, "status": row["status"], "done_at": row["done_at"]}
     return {"id": reminder_id, "done": False}
+
+
+# --- Job feedback ---
+
+def create_feedback(job_id: int, sentiment: str, comment: str = '') -> Dict[str, Any]:
+    init_db()
+    created = datetime.utcnow().isoformat()
+    sentiment = (sentiment or 'useful').strip() or 'useful'
+    comment = (comment or '').strip()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO job_feedback (job_id, sentiment, comment, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (job_id, sentiment, comment, created),
+        )
+        row = conn.execute("SELECT * FROM job_feedback WHERE id=?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+
+def list_feedback(job_id: int = None) -> List[Dict[str, Any]]:
+    init_db()
+    query = "SELECT * FROM job_feedback"
+    params = []
+    if job_id is not None:
+        query += " WHERE job_id=?"
+        params.append(job_id)
+    query += " ORDER BY created_at DESC"
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def feedback_summary() -> Dict[str, Any]:
+    init_db()
+    with get_conn() as conn:
+        overall = conn.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN sentiment='useful' THEN 1 ELSE 0 END) AS useful,
+                   SUM(CASE WHEN sentiment='neutral' THEN 1 ELSE 0 END) AS neutral,
+                   SUM(CASE WHEN sentiment='not_useful' THEN 1 ELSE 0 END) AS not_useful
+            FROM job_feedback
+            """
+        ).fetchone()
+        by_site = conn.execute(
+            """
+            SELECT COALESCE(j.site, 'unknown') AS site,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN f.sentiment='useful' THEN 1 ELSE 0 END) AS useful,
+                   SUM(CASE WHEN f.sentiment='neutral' THEN 1 ELSE 0 END) AS neutral,
+                   SUM(CASE WHEN f.sentiment='not_useful' THEN 1 ELSE 0 END) AS not_useful
+            FROM job_feedback f
+            LEFT JOIN jobs j ON j.id=f.job_id
+            GROUP BY COALESCE(j.site, 'unknown')
+            ORDER BY total DESC, site ASC
+            """
+        ).fetchall()
+
+    def normalize(row) -> Dict[str, Any]:
+        result = dict(row)
+        total = result.get("total") or 0
+        result["useful_rate"] = round((result.get("useful") or 0) / total * 100) if total else 0
+        return result
+
+    return {
+        "overall": normalize(overall),
+        "by_site": [normalize(row) for row in by_site],
+    }
 
 
 # --- Maintenance ---

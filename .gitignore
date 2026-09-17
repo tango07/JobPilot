@@ -4,6 +4,8 @@ __pycache__/
 *.db
 .anthropic_key
 .secret.key
+.env
+.env.*
 uploads/
 avatars/
 .DS_Store
