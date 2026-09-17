@@ -447,6 +447,7 @@ def all_credentials(profile_id: int = None) -> List[Dict]:
 # --- Jobs ---
 
 def upsert_job(data: Dict) -> int:
+    init_db()
     data["date_found"] = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute("""
@@ -465,6 +466,7 @@ def upsert_job(data: Dict) -> int:
 
 
 def get_jobs(site: str = None, status: str = None, limit: int = 100, offset: int = 0) -> List[Dict]:
+    init_db()
     query = "SELECT * FROM jobs WHERE 1=1"
     params = []
     if site:
@@ -541,6 +543,7 @@ def count_applications(status: str = None) -> int:
 
 def create_saved_search(name: str, keywords: str, location: str = '', sites: List[str] = None,
                        filters: Dict[str, Any] = None) -> Dict[str, Any]:
+    init_db()
     created = datetime.utcnow().isoformat()
     with get_conn() as conn:
         cur = conn.execute(
@@ -563,6 +566,7 @@ def create_saved_search(name: str, keywords: str, location: str = '', sites: Lis
 
 
 def list_saved_searches() -> List[Dict[str, Any]]:
+    init_db()
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT * FROM saved_searches ORDER BY created_at DESC"
@@ -577,6 +581,7 @@ def list_saved_searches() -> List[Dict[str, Any]]:
 
 
 def update_saved_search(search_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+    init_db()
     if not kwargs:
         return None
     with get_conn() as conn:
@@ -599,6 +604,7 @@ def update_saved_search(search_id: int, **kwargs) -> Optional[Dict[str, Any]]:
 
 
 def delete_saved_search(search_id: int) -> bool:
+    init_db()
     with get_conn() as conn:
         cur = conn.execute("DELETE FROM saved_searches WHERE id=?", (search_id,))
         return cur.rowcount > 0
@@ -607,6 +613,7 @@ def delete_saved_search(search_id: int) -> bool:
 # --- Reminders ---
 
 def create_reminder(job_id: int, reminder_type: str, due_at: str, note: str = '') -> Dict[str, Any]:
+    init_db()
     created = datetime.utcnow().isoformat()
     with get_conn() as conn:
         cur = conn.execute(
@@ -623,6 +630,7 @@ def create_reminder(job_id: int, reminder_type: str, due_at: str, note: str = ''
 
 
 def list_reminders(status: str = None, job_id: int = None) -> List[Dict[str, Any]]:
+    init_db()
     query = "SELECT * FROM reminders WHERE 1=1"
     params = []
     if status:
@@ -643,6 +651,7 @@ def list_reminders(status: str = None, job_id: int = None) -> List[Dict[str, Any
 
 
 def mark_reminder_done(reminder_id: int) -> Dict[str, Any]:
+    init_db()
     done_at = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
