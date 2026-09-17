@@ -95,6 +95,29 @@ def init_db():
             notes TEXT,
             response TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS saved_searches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            keywords TEXT NOT NULL,
+            location TEXT DEFAULT '',
+            sites TEXT DEFAULT '[]',
+            filters TEXT DEFAULT '{}',
+            created_at TEXT,
+            last_run TEXT,
+            is_active INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            reminder_type TEXT NOT NULL DEFAULT 'follow_up',
+            due_at TEXT NOT NULL,
+            note TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT,
+            done_at TEXT
+        );
         """)
 
         # ── Migrations for existing databases ──────────────────────────────────
@@ -504,6 +527,117 @@ def count_applications(status: str = None) -> int:
         params.append(status)
     with get_conn() as conn:
         return conn.execute(query, params).fetchone()[0]
+
+
+# --- Saved searches ---
+
+def create_saved_search(name: str, keywords: str, location: str = '', sites: List[str] = None,
+                       filters: Dict[str, Any] = None) -> Dict[str, Any]:
+    created = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO saved_searches (name, keywords, location, sites, filters, created_at, last_run, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                name.strip() or "Saved Search",
+                keywords.strip(),
+                location.strip(),
+                json.dumps(sites or []),
+                json.dumps(filters or {}),
+                created,
+                created,
+            ),
+        )
+        row = conn.execute("SELECT * FROM saved_searches WHERE id=?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+
+def list_saved_searches() -> List[Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM saved_searches ORDER BY created_at DESC"
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        d["sites"] = json.loads(d.get("sites") or "[]")
+        d["filters"] = json.loads(d.get("filters") or "{}")
+        result.append(d)
+    return result
+
+
+def update_saved_search(search_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+    if not kwargs:
+        return None
+    with get_conn() as conn:
+        updates = []
+        values = []
+        for key, value in kwargs.items():
+            if key in {"sites", "filters"}:
+                value = json.dumps(value)
+            updates.append(f"{key}=?")
+            values.append(value)
+        values.append(search_id)
+        conn.execute(f"UPDATE saved_searches SET {', '.join(updates)} WHERE id=?", values)
+        row = conn.execute("SELECT * FROM saved_searches WHERE id=?", (search_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["sites"] = json.loads(d.get("sites") or "[]")
+        d["filters"] = json.loads(d.get("filters") or "{}")
+        return d
+
+
+def delete_saved_search(search_id: int) -> bool:
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM saved_searches WHERE id=?", (search_id,))
+        return cur.rowcount > 0
+
+
+# --- Reminders ---
+
+def create_reminder(job_id: int, reminder_type: str, due_at: str, note: str = '') -> Dict[str, Any]:
+    created = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO reminders (job_id, reminder_type, due_at, note, status, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?)
+            """,
+            (job_id, reminder_type, due_at, note, created),
+        )
+        row = conn.execute("SELECT * FROM reminders WHERE id=?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+
+def list_reminders(status: str = None, job_id: int = None) -> List[Dict[str, Any]]:
+    query = "SELECT * FROM reminders WHERE 1=1"
+    params = []
+    if status:
+        query += " AND status=?"
+        params.append(status)
+    if job_id is not None:
+        query += " AND job_id=?"
+        params.append(job_id)
+    query += " ORDER BY due_at ASC"
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def mark_reminder_done(reminder_id: int) -> Dict[str, Any]:
+    done_at = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE reminders SET status='done', done_at=? WHERE id=?",
+            (done_at, reminder_id),
+        )
+        row = conn.execute("SELECT * FROM reminders WHERE id=?", (reminder_id,)).fetchone()
+    if row:
+        return {"id": row["id"], "done": True, "status": row["status"], "done_at": row["done_at"]}
+    return {"id": reminder_id, "done": False}
 
 
 # --- Maintenance ---

@@ -33,6 +33,8 @@ from database import (
     list_profiles, create_profile, activate_profile, delete_profile,
     set_profile_password, verify_profile_password,
     get_profile_claude_key, set_profile_claude_key,
+    create_saved_search, list_saved_searches, delete_saved_search,
+    create_reminder, list_reminders, mark_reminder_done,
 )
 from encryption import encrypt, decrypt
 from scrapers.base import set_headless_mode
@@ -539,6 +541,72 @@ async def api_apply(job_id: int):
         await manager.broadcast({"type": "applied", "job_id": job_id, "success": False})
         return {"status": "manual_needed", "url": job["url"]}
 
+
+class SavedSearchData(BaseModel):
+    name: str
+    keywords: str
+    location: str = ""
+    sites: List[str] = []
+    filters: Dict[str, Any] = {}
+
+
+@app.get("/api/saved-searches")
+async def api_list_saved_searches():
+    return list_saved_searches()
+
+
+@app.post("/api/saved-searches")
+async def api_create_saved_search(data: SavedSearchData):
+    if not data.keywords.strip():
+        raise HTTPException(status_code=400, detail="Keywords cannot be empty")
+    return create_saved_search(
+        name=data.name or "Saved Search",
+        keywords=data.keywords.strip(),
+        location=data.location.strip(),
+        sites=data.sites,
+        filters=data.filters,
+    )
+
+
+@app.delete("/api/saved-searches/{search_id}")
+async def api_delete_saved_search(search_id: int):
+    ok = delete_saved_search(search_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    return {"status": "deleted"}
+
+
+class ReminderData(BaseModel):
+    job_id: int
+    reminder_type: str = "follow_up"
+    due_at: str
+    note: str = ""
+
+
+@app.get("/api/reminders")
+async def api_list_reminders(status: str = None, job_id: int = None):
+    return list_reminders(status=status, job_id=job_id)
+
+
+@app.post("/api/reminders")
+async def api_create_reminder(data: ReminderData):
+    if not data.due_at:
+        raise HTTPException(status_code=400, detail="Reminder date is required")
+    return create_reminder(
+        job_id=data.job_id,
+        reminder_type=data.reminder_type,
+        due_at=data.due_at,
+        note=data.note,
+    )
+
+
+@app.patch("/api/reminders/{reminder_id}/done")
+async def api_reminder_done(reminder_id: int):
+    result = mark_reminder_done(reminder_id)
+    if not result.get("done"):
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return result
+
 @app.post("/api/jobs/apply-batch")
 async def api_apply_batch(params: dict):
     """Apply to multiple jobs. Body: {"job_ids": [1, 2, 3]}"""
@@ -567,6 +635,19 @@ async def api_count_applications(status: str = None):
 async def api_update_application(app_id: int, data: ApplicationUpdate):
     update_application_status(app_id, data.status, data.response)
     return {"status": "updated"}
+
+
+class JobStatusUpdate(BaseModel):
+    status: str
+
+
+@app.patch("/api/jobs/{job_id}/status")
+async def api_update_job_status(job_id: int, data: JobStatusUpdate):
+    allowed = {"new", "applied", "interviewing", "offered", "rejected", "withdrawn"}
+    if data.status not in allowed:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {data.status}")
+    update_job_status(job_id, data.status)
+    return {"status": "updated", "job_id": job_id, "new_status": data.status}
 
 # ── Dashboard stats ────────────────────────────────────────────────────────────
 

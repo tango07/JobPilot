@@ -1427,8 +1427,70 @@ async function renderTracker() {
     <div class="tab" onclick="loadApps('offered',this)">Offered</div>
     <div class="tab" onclick="loadApps('rejected',this)">Rejected</div>
   </div>
+  <div id="pipeline-board" style="margin-bottom:18px"></div>
   <div id="apps-list"><div style="text-align:center;padding:32px;color:var(--muted)">Loading…</div></div>`;
+  await loadPipeline();
   await loadApps('');
+}
+
+async function loadPipeline() {
+  const board = document.getElementById('pipeline-board');
+  if (!board) return;
+  try {
+    const pipelineJobs = jobs.length ? jobs : await api('GET', '/api/jobs?limit=300');
+    const columns = [
+      { key: 'new', label: 'Saved', color: '#64748B' },
+      { key: 'applied', label: 'Applied', color: '#2563EB' },
+      { key: 'interviewing', label: 'Interviewing', color: '#D97706' },
+      { key: 'offered', label: 'Offers', color: '#059669' },
+      { key: 'rejected', label: 'Rejected', color: '#DC2626' },
+    ];
+    const groups = Object.fromEntries(columns.map(col => [col.key, []]));
+    pipelineJobs.forEach(job => {
+      const key = job.status || 'new';
+      if (groups[key]) groups[key].push(job);
+      else groups.new.push(job);
+    });
+
+    board.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:start;">
+        ${columns.map(col => `
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh)">
+            <div style="padding:10px 12px;background:${col.color}20;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span style="font-weight:700;font-size:13px;color:var(--text)">${col.label}</span>
+              <span style="font-size:11px;font-weight:700;background:${col.color}22;color:${col.color};padding:3px 8px;border-radius:999px">${groups[col.key].length}</span>
+            </div>
+            <div style="padding:10px;display:flex;flex-direction:column;gap:8px;min-height:110px">
+              ${groups[col.key].length ? groups[col.key].map(job => `
+                <div class="job-card" style="padding:10px 12px;border-radius:10px;cursor:default;box-shadow:none">
+                  <div class="jinfo" style="width:100%">
+                    <div class="jtitle" style="font-size:13px">${esc(job.title || 'Untitled role')}</div>
+                    <div class="jcomp" style="font-size:12px;margin-bottom:6px">${esc(job.company || 'Unknown company')}</div>
+                    <div class="jmeta" style="gap:4px">
+                      <span class="badge ${job.site || 'new'}">${esc(job.site || 'site')}</span>
+                      ${job.location ? `<span class="jtag">${esc(job.location)}</span>` : ''}
+                    </div>
+                    <div style="margin-top:8px">
+                      <select class="form-select" style="font-size:12px;padding:5px 8px" onchange="updateJobStatus(${job.id}, this.value)">
+                        <option value="new" ${job.status === 'new' ? 'selected' : ''}>Saved</option>
+                        <option value="applied" ${job.status === 'applied' ? 'selected' : ''}>Applied</option>
+                        <option value="interviewing" ${job.status === 'interviewing' ? 'selected' : ''}>Interviewing</option>
+                        <option value="offered" ${job.status === 'offered' ? 'selected' : ''}>Offered</option>
+                        <option value="rejected" ${job.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                        <option value="withdrawn" ${job.status === 'withdrawn' ? 'selected' : ''}>Withdrawn</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              `).join('') : '<div style="font-size:12px;color:var(--muted);padding:8px 4px">No jobs here yet.</div>'}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    board.innerHTML = `<div class="empty"><h3>Pipeline unavailable</h3><p>${esc(e.message)}</p></div>`;
+  }
 }
 
 async function loadApps(status, tabEl) {
@@ -1469,6 +1531,22 @@ async function loadApps(status, tabEl) {
 async function updateApp(id, status) {
   try { await api('PATCH', `/api/applications/${id}`, { status }); toast('Status updated', 'success'); refreshStats(); }
   catch(e) { toast(e.message, 'error'); }
+}
+
+async function updateJobStatus(jobId, status) {
+  try {
+    await api('PATCH', `/api/jobs/${jobId}/status`, { status });
+    toast('Pipeline stage updated', 'success');
+    if (jobs.length) {
+      const idx = jobs.findIndex(j => j.id === jobId);
+      if (idx >= 0) jobs[idx].status = status;
+    }
+    await loadPipeline();
+    await loadApps('');
+    refreshStats();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1851,7 +1929,22 @@ function renderDataTab() {
       </button>
     </div>
   </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px">Saved Searches</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <input id="saved-search-name" class="form-input" placeholder="Saved search name" style="max-width:200px">
+      <button class="btn btn-primary btn-sm" onclick="saveCurrentSearch()">Save current search</button>
+    </div>
+    <div id="saved-search-list">Loading…</div>
+  </div>
+
   <div class="card">
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px">Upcoming Reminders</div>
+    <div id="reminder-list">Loading…</div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
     <div style="font-size:15px;font-weight:700;margin-bottom:4px">Auto-cleanup Policy</div>
     <div style="color:var(--muted);font-size:13px">
       Jobs older than <strong>10 days</strong> are deleted automatically on each startup.<br>
@@ -1863,6 +1956,110 @@ function renderDataTab() {
     const el = document.getElementById('db-job-count');
     if (el) el.textContent = `${s.total_jobs || 0} job(s) currently stored`;
   }).catch(() => {});
+  loadSavedSearches();
+  loadReminders();
+}
+
+async function loadSavedSearches() {
+  try {
+    const searches = await api('GET', '/api/saved-searches');
+    const el = document.getElementById('saved-search-list');
+    if (!el) return;
+    if (!searches.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">No saved searches yet.</div>';
+      return;
+    }
+    el.innerHTML = searches.map(s => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:8px">
+        <div>
+          <div style="font-weight:600;font-size:13px">${esc(s.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${esc(s.keywords)}${s.location ? ' · ' + esc(s.location) : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="runSavedSearch(${JSON.stringify(s).replace(/"/g,'&quot;')})">Use</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteSavedSearch(${s.id})">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('saved-search-list').innerHTML = '<div style="color:var(--red);font-size:12px">Failed to load saved searches.</div>';
+  }
+}
+
+async function deleteSavedSearch(id) {
+  try {
+    await api('DELETE', `/api/saved-searches/${id}`);
+    toast('Saved search removed', 'success');
+    loadSavedSearches();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function saveCurrentSearch() {
+  const name = document.getElementById('saved-search-name')?.value.trim() || 'Saved Search';
+  const query = document.getElementById('f-nl')?.value.trim();
+  if (!query) {
+    toast('Enter a search query first', 'warning');
+    return;
+  }
+  const checked = [...document.querySelectorAll('.chip input:checked')].map(i => i.value);
+  const payload = {
+    name,
+    keywords: query,
+    location: document.getElementById('filter-kw')?.value ? '' : '',
+    sites: checked,
+    filters: {}
+  };
+  try {
+    await api('POST', '/api/saved-searches', payload);
+    toast('Saved search created', 'success');
+    document.getElementById('saved-search-name').value = '';
+    loadSavedSearches();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function runSavedSearch(search) {
+  const input = document.getElementById('f-nl');
+  if (input) input.value = search.keywords + (search.location ? ', ' + search.location : '');
+  const chips = document.querySelectorAll('.chip input');
+  chips.forEach(box => { box.checked = (search.sites || []).includes(box.value); box.parentElement.classList.toggle('on', box.checked); });
+  if (search.keywords) runSearch();
+}
+
+async function loadReminders() {
+  try {
+    const reminders = await api('GET', '/api/reminders?status=pending');
+    const el = document.getElementById('reminder-list');
+    if (!el) return;
+    if (!reminders.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">No upcoming reminders.</div>';
+      return;
+    }
+    el.innerHTML = reminders.map(r => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:8px">
+        <div>
+          <div style="font-weight:600;font-size:13px;text-transform:capitalize">${esc(r.reminder_type || 'follow_up')}</div>
+          <div style="font-size:12px;color:var(--muted)">${esc(r.note || 'Follow up reminder')} · ${esc(r.due_at ? new Date(r.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '')}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="markReminderDone(${r.id})">Done</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('reminder-list').innerHTML = '<div style="color:var(--red);font-size:12px">Failed to load reminders.</div>';
+  }
+}
+
+async function markReminderDone(id) {
+  try {
+    await api('PATCH', `/api/reminders/${id}/done`);
+    toast('Reminder marked done', 'success');
+    loadReminders();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function clearAllJobs() {
