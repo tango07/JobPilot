@@ -29,6 +29,7 @@ jobs:
       - name: Run tests
         env:
           JOBPILOT_SECRET_KEY: test-secret-key-for-ci
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest tests -q
 
       - name: Compile backend modules
