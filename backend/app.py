@@ -35,6 +35,7 @@ from database import (
     get_profile_claude_key, set_profile_claude_key,
     create_saved_search, list_saved_searches, delete_saved_search,
     create_reminder, list_reminders, mark_reminder_done,
+    create_feedback, list_feedback, feedback_summary,
 )
 from encryption import encrypt, decrypt
 from scrapers.base import set_headless_mode
@@ -583,6 +584,12 @@ class ReminderData(BaseModel):
     note: str = ""
 
 
+class FeedbackData(BaseModel):
+    job_id: int
+    sentiment: str = "useful"
+    comment: str = ""
+
+
 @app.get("/api/reminders")
 async def api_list_reminders(status: str = None, job_id: int = None):
     return list_reminders(status=status, job_id=job_id)
@@ -606,6 +613,26 @@ async def api_reminder_done(reminder_id: int):
     if not result.get("done"):
         raise HTTPException(status_code=404, detail="Reminder not found")
     return result
+
+
+@app.get("/api/feedback")
+async def api_list_feedback(job_id: int = None):
+    return list_feedback(job_id=job_id)
+
+
+@app.get("/api/feedback/summary")
+async def api_feedback_summary():
+    return feedback_summary()
+
+
+@app.post("/api/feedback")
+async def api_create_feedback(data: FeedbackData):
+    jobs = get_jobs()
+    if not any(job["id"] == data.job_id for job in jobs):
+        raise HTTPException(status_code=404, detail="Job not found")
+    if data.sentiment not in {"useful", "neutral", "not_useful"}:
+        raise HTTPException(status_code=400, detail="Invalid sentiment")
+    return create_feedback(job_id=data.job_id, sentiment=data.sentiment, comment=data.comment)
 
 @app.post("/api/jobs/apply-batch")
 async def api_apply_batch(params: dict):

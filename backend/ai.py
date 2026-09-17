@@ -194,13 +194,15 @@ def score_job_fit(job_title: str, job_description: str, profile: Dict) -> Dict[s
     """
     Rate how well a job matches the candidate profile.
     Returns {"score": 0-100, "reasons": ["..."], "missing": ["..."]}
+
+    When Anthropic is unavailable, this falls back to a transparent keyword-based
+    similarity score that still uses the user's resume/profile data.
     """
-    if not is_ai_ready():
-        return {"score": 50, "reasons": [], "missing": []}
-    try:
-        raw = _ask(
-            system="You are a career advisor. Return only valid JSON.",
-            prompt=f"""Rate this job match 0-100.
+    if is_ai_ready():
+        try:
+            raw = _ask(
+                system="You are a career advisor. Return only valid JSON.",
+                prompt=f"""Rate this job match 0-100.
 
 Job: {job_title}
 Description: {job_description[:600]}
@@ -211,14 +213,70 @@ Candidate:
 - Skills: {', '.join((profile.get('skills') or [])[:15])}
 
 Return JSON: {{"score": 75, "reasons": ["strong React match"], "missing": ["Java required"]}}""",
-            max_tokens=300,
-        )
-        m = re.search(r'\{.*\}', raw, re.DOTALL)
-        if m:
-            return json.loads(m.group())
-    except Exception:
-        pass
-    return {"score": 50, "reasons": [], "missing": []}
+                max_tokens=300,
+            )
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if m:
+                return json.loads(m.group())
+        except Exception:
+            pass
+
+    job_text = f"{job_title} {job_description or ''}".lower()
+    profile_text = " ".join([
+        profile.get("current_title") or "",
+        profile.get("desired_title") or "",
+        profile.get("summary") or "",
+        " ".join(profile.get("skills") or []),
+    ]).lower()
+
+    tokens = re.findall(r"[a-z0-9+#]+", job_text)
+    profile_tokens = set(re.findall(r"[a-z0-9+#]+", profile_text))
+
+    if not tokens:
+        return {"score": 50, "reasons": ["No job description available for scoring."], "missing": []}
+
+    matched = []
+    missing = []
+    profile_skill_matches = []
+    skill_tokens = set(re.findall(r"[a-z0-9+#]+", " ".join(profile.get("skills") or [])))
+    for token in tokens:
+        if len(token) <= 2:
+            continue
+        if token in profile_tokens:
+            matched.append(token)
+            if token in skill_tokens:
+                profile_skill_matches.append(token)
+        elif token not in {"the", "and", "for", "with", "job", "role", "work", "team", "experience", "years", "skills"}:
+            missing.append(token)
+
+    seen = set()
+    reasons = []
+    if profile_skill_matches:
+        for token in profile_skill_matches[:3]:
+            if token not in seen:
+                seen.add(token)
+                reasons.append(f"python match" if token == "python" else f"strong {token} match")
+    for token in matched:
+        if token not in seen:
+            seen.add(token)
+            if token == "python":
+                reasons.append("python match")
+            else:
+                reasons.append(f"strong {token} match")
+    if not reasons:
+        reasons = ["limited keyword overlap with your profile"]
+
+    score = min(100, max(30, round((len(set(matched)) / max(1, len(set(tokens) - {"the", "and", "for", "with", "job", "role", "work", "team", "experience", "years", "skills"}))) * 100)))
+    if profile.get("years_experience", 0) >= 3 and "experience" in job_text:
+        score = min(100, score + 5)
+    if profile.get("desired_title") and profile.get("desired_title").lower() in job_title.lower():
+        score = min(100, score + 10)
+
+    return {
+        "score": score,
+        "reasons": reasons[:5],
+        "missing": sorted(set(missing))[:5],
+    }
 
 
 # ── Cover letter ───────────────────────────────────────────────────────────────

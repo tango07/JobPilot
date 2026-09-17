@@ -438,6 +438,7 @@ let ws = null;
 let jobs = [], applications = [], stats = {}, profileSkills = [];
 let lastSearchKw = '';
 let connectedSites = new Set(); // sites that have saved credentials
+let jobMatchScores = {};
 
 // ── Profile / Account helpers ──────────────────────────────────────────────
 const _PROF_COLORS = ['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6'];
@@ -809,6 +810,39 @@ async function api(method, path, body) {
 }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function scoreClass(score) {
+  if (score >= 80) return 'score-high';
+  if (score >= 60) return 'score-mid';
+  return 'score-low';
+}
+
+async function enrichJobScores() {
+  const ids = [...new Set(jobs.map(job => job.id).filter(Boolean))];
+  if (!ids.length) return;
+
+  const pending = ids.filter(id => !(id in jobMatchScores));
+  if (!pending.length) return;
+
+  const batch = pending.slice(0, 12);
+  const results = await Promise.all(batch.map(async id => {
+    try {
+      const res = await api('POST', `/api/ai/score-job/${id}`);
+      return { id, score: Number(res?.score ?? 0), reasons: Array.isArray(res?.reasons) ? res.reasons : [] };
+    } catch (_) {
+      return { id, score: 0, reasons: [] };
+    }
+  }));
+
+  results.forEach(item => {
+    jobMatchScores[item.id] = item.score;
+    const idx = jobs.findIndex(job => job.id === item.id);
+    if (idx >= 0) {
+      jobs[idx].match_score = item.score;
+      jobs[idx].match_reasons = item.reasons;
+    }
+  });
+}
+
 // ── Toast ──
 function toast(msg, type = 'info') {
   const c = document.getElementById('toasts');
@@ -1171,6 +1205,7 @@ async function runSearch() {
 async function loadFeedJobs() {
   try {
     jobs = await api('GET', '/api/jobs?limit=300');
+    await enrichJobScores();
     // After a search, reset all filters and apply only the search keyword
     // so the user immediately sees the results without restrictive stale filters
     if (lastSearchKw) {
@@ -1307,10 +1342,16 @@ function renderJobCards(list) {
           ${j.salary?`<span class="jtag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>${esc(j.salary)}</span>`:''}
           ${j.easy_apply?'<span class="badge easy">Easy Apply</span>':''}
           <span class="badge ${j.status||'new'}">${j.status||'new'}</span>
+          ${typeof j.match_score === 'number'
+            ? `<span class="score-pill ${scoreClass(j.match_score)}" title="${(j.match_reasons||[]).join(', ') || 'Fit score'}">${j.match_score}% fit</span>`
+            : '<span class="score-pill score-mid" title="Scoring…">Scoring…</span>'}
           ${(j.date_posted&&j.date_posted.length>5)?`<span class="jtag" style="margin-left:auto;color:var(--muted);font-size:11px" title="Posted: ${j.date_posted.replace('T',' ').slice(0,16)} UTC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Posted ${timeAgo(j.date_posted)}</span>`:(j.date_found?`<span class="jtag" style="margin-left:auto;color:var(--muted);font-size:11px;opacity:.55" title="Scraped: ${j.date_found.replace('T',' ').slice(0,16)} UTC (post date unavailable)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>found ${timeAgo(j.date_found)}</span>`:'')}
         </div>
       </div>
       <div class="jactions">
+        <button class="btn btn-secondary btn-sm" onclick="openFeedback(${j.id})" title="Rate this match">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.46 6.03.88-4.37 4.27 1.03 6.02L12 0l-5.39 2.83 1.03-6.02L3.27 9.34l6.03-.88L12 3z"/></svg>
+        </button>
         <button class="btn btn-secondary btn-sm" onclick="showCoverLetter(${j.id})" title="Generate cover letter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         </button>
@@ -1409,6 +1450,33 @@ async function showCoverLetter(jobId) {
   }
 }
 
+function openFeedback(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  openModal(`<div class="modal-title">Match feedback — ${esc(job.title)}</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">How useful was this fit score for this role?</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-success btn-sm" onclick="submitFeedback(${jobId}, 'useful')">Useful</button>
+      <button class="btn btn-secondary btn-sm" onclick="submitFeedback(${jobId}, 'neutral')">Maybe</button>
+      <button class="btn btn-danger btn-sm" onclick="submitFeedback(${jobId}, 'not_useful')">Not useful</button>
+    </div>
+    <textarea id="feedback-comment" class="form-textarea" placeholder="Optional note: what did the score get right or wrong?"></textarea>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModalF()">Close</button>
+    </div>`);
+}
+
+async function submitFeedback(jobId, sentiment) {
+  const comment = document.getElementById('feedback-comment')?.value || '';
+  try {
+    await api('POST', '/api/feedback', { job_id: jobId, sentiment, comment });
+    toast('Feedback saved', 'success');
+    closeModalF();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
 function copyText(elId) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -1428,9 +1496,40 @@ async function renderTracker() {
     <div class="tab" onclick="loadApps('rejected',this)">Rejected</div>
   </div>
   <div id="pipeline-board" style="margin-bottom:18px"></div>
+  <div id="feedback-summary" style="margin-bottom:18px"></div>
   <div id="apps-list"><div style="text-align:center;padding:32px;color:var(--muted)">Loading…</div></div>`;
   await loadPipeline();
+  await loadFeedbackSummary();
   await loadApps('');
+}
+
+async function loadFeedbackSummary() {
+  const el = document.getElementById('feedback-summary');
+  if (!el) return;
+  try {
+    const summary = await api('GET', '/api/feedback/summary');
+    const overall = summary.overall || {};
+    const sites = summary.by_site || [];
+    if (!overall.total) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <div><div class="card-title" style="margin-bottom:2px">Match feedback</div><div style="font-size:12px;color:var(--muted)">Signals from your fit-score reviews</div></div>
+        <strong style="font-size:22px;color:var(--green)">${overall.useful_rate}% useful</strong>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${sites.length ? '12px' : '0'}">
+        <span class="jtag">${overall.total} responses</span>
+        <span class="score-pill score-high">${overall.useful || 0} useful</span>
+        <span class="score-pill score-mid">${overall.neutral || 0} maybe</span>
+        <span class="score-pill score-low">${overall.not_useful || 0} not useful</span>
+      </div>
+      ${sites.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${sites.map(site => `<span class="jtag"><strong>${esc(site.site)}</strong>&nbsp; ${site.useful_rate}% useful (${site.total})</span>`).join('')}</div>` : ''}
+    </div>`;
+  } catch (_) {
+    el.innerHTML = '';
+  }
 }
 
 async function loadPipeline() {
