@@ -824,21 +824,20 @@ async function enrichJobScores() {
   if (!pending.length) return;
 
   const batch = pending.slice(0, 12);
-  const results = await Promise.all(batch.map(async id => {
-    try {
-      const res = await api('POST', `/api/ai/score-job/${id}`);
-      return { id, score: Number(res?.score ?? 0), reasons: Array.isArray(res?.reasons) ? res.reasons : [] };
-    } catch (_) {
-      return { id, score: 0, reasons: [] };
-    }
-  }));
+  let results = [];
+  try {
+    const response = await api('POST', '/api/ai/score-jobs', { job_ids: batch });
+    results = Array.isArray(response?.results) ? response.results : [];
+  } catch (_) {
+    return;
+  }
 
   results.forEach(item => {
-    jobMatchScores[item.id] = item.score;
+    jobMatchScores[item.id] = Number(item.score ?? 0);
     const idx = jobs.findIndex(job => job.id === item.id);
     if (idx >= 0) {
-      jobs[idx].match_score = item.score;
-      jobs[idx].match_reasons = item.reasons;
+      jobs[idx].match_score = Number(item.score ?? 0);
+      jobs[idx].match_reasons = Array.isArray(item.reasons) ? item.reasons : [];
     }
   });
 }

@@ -20,3 +20,17 @@ def test_score_job_fit_uses_resume_and_skill_overlap(monkeypatch):
     assert 0 <= result["score"] <= 100
     assert result["score"] >= 60
     assert "python" in " ".join(result["reasons"]).lower()
+
+
+def test_score_jobs_fit_returns_results_for_each_job(monkeypatch):
+    monkeypatch.setattr(ai, "is_ai_ready", lambda: False)
+    profile = {"skills": ["python", "fastapi"], "desired_title": "Python Engineer"}
+    jobs = [
+        {"id": 11, "title": "Python Engineer", "description": "Python and FastAPI"},
+        {"id": 12, "title": "Frontend Engineer", "description": "JavaScript and CSS"},
+    ]
+
+    results = ai.score_jobs_fit(jobs, profile)
+
+    assert [item["id"] for item in results] == [11, 12]
+    assert all(isinstance(item["score"], int) for item in results)

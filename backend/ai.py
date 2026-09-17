@@ -279,6 +279,62 @@ Return JSON: {{"score": 75, "reasons": ["strong React match"], "missing": ["Java
     }
 
 
+def score_jobs_fit(jobs: List[Dict[str, Any]], profile: Dict) -> List[Dict[str, Any]]:
+    """Score several jobs in one AI request, with per-job fallback scoring."""
+    if not jobs:
+        return []
+
+    if not is_ai_ready():
+        return [
+            {"id": job["id"], **score_job_fit(job.get("title", ""), job.get("description", ""), profile)}
+            for job in jobs
+        ]
+
+    job_blocks = "\n\n".join(
+        f"Job {job['id']}: {job.get('title', '')}\n{(job.get('description') or '')[:600]}"
+        for job in jobs
+    )
+    try:
+        raw = _ask(
+            system="You are a career advisor. Return only valid JSON.",
+            prompt=f"""Score each job match from 0-100 for this candidate.
+
+Candidate:
+- Role: {profile.get('current_title', '')} -> {profile.get('desired_title', '')}
+- Experience: {profile.get('years_experience', 0)} years
+- Skills: {', '.join((profile.get('skills') or [])[:15])}
+
+Jobs:
+{job_blocks}
+
+Return a JSON array with one object per job, preserving each id:
+[{{"id": 123, "score": 75, "reasons": ["strong Python match"], "missing": ["Kubernetes"]}}]
+""",
+            max_tokens=max(500, len(jobs) * 120),
+        )
+        match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group())
+            by_id = {int(item["id"]): item for item in parsed if "id" in item}
+            if all(job["id"] in by_id for job in jobs):
+                return [
+                    {
+                        "id": job["id"],
+                        "score": max(0, min(100, int(by_id[job["id"]].get("score", 0)))),
+                        "reasons": by_id[job["id"]].get("reasons", [])[:5],
+                        "missing": by_id[job["id"]].get("missing", [])[:5],
+                    }
+                    for job in jobs
+                ]
+    except Exception:
+        pass
+
+    return [
+        {"id": job["id"], **score_job_fit(job.get("title", ""), job.get("description", ""), profile)}
+        for job in jobs
+    ]
+
+
 # ── Cover letter ───────────────────────────────────────────────────────────────
 
 def generate_cover_letter(job_title: str, company: str,

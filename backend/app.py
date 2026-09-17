@@ -718,6 +718,10 @@ class AnswerRequest(BaseModel):
 class ScoreRequest(BaseModel):
     job_id: int
 
+
+class BatchScoreRequest(BaseModel):
+    job_ids: List[int]
+
 @app.get("/api/ai/status")
 async def ai_status():
     profile_key = get_profile_claude_key()
@@ -771,6 +775,15 @@ async def score_job(job_id: int):
     profile = get_profile() or {}
     result = ai_module.score_job_fit(job["title"], job.get("description", ""), profile)
     return result
+
+
+@app.post("/api/ai/score-jobs")
+async def score_jobs(data: BatchScoreRequest):
+    requested = list(dict.fromkeys(data.job_ids))[:12]
+    jobs_by_id = {job["id"]: job for job in get_jobs(limit=300)}
+    jobs = [jobs_by_id[job_id] for job_id in requested if job_id in jobs_by_id]
+    profile = get_profile() or {}
+    return {"results": ai_module.score_jobs_fit(jobs, profile)}
 
 @app.post("/api/ai/cover-letter/{job_id}")
 async def cover_letter(job_id: int):
