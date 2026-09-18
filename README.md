@@ -21,6 +21,7 @@ JobPilot is a Python-based job search assistant that helps you discover jobs, tr
 - Playwright
 - Anthropic API support
 - Static frontend served from the frontend folder
+- React + Vite frontend, served as a production bundle by FastAPI
 
 ## Repository layout
 
@@ -54,6 +55,16 @@ Or use the helper scripts:
 ./setup.sh
 ./run.sh
 ```
+
+The frontend source is in `frontend/src/`. To rebuild it manually:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+FastAPI serves the compiled bundle from `frontend/dist/` at the same local URL.
 
 ## Environment variables
 

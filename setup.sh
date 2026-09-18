@@ -39,6 +39,14 @@ pip install -q -r requirements.txt
 echo "→  Installing Playwright browsers (this may take a moment)…"
 playwright install chromium
 
+# Build the React frontend
+if command -v npm &>/dev/null; then
+  echo "→  Building React frontend…"
+  (cd frontend && npm install --silent && npm run build)
+else
+  echo "⚠  npm is not installed; build the frontend with: cd frontend && npm install && npm run build"
+fi
+
 echo ""
 echo "✅  Setup complete!"
 echo ""

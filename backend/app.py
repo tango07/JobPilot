@@ -52,7 +52,10 @@ import ai as ai_module
 
 app = FastAPI(title="Job Search App", version="1.0.0")
 
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+FRONTEND_SOURCE_DIR = Path(__file__).parent.parent / "frontend"
+FRONTEND_DIR = FRONTEND_SOURCE_DIR / "dist"
+if not FRONTEND_DIR.exists():
+    FRONTEND_DIR = FRONTEND_SOURCE_DIR
 UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = Path(__file__).parent.parent / "avatars"
