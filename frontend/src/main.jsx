@@ -16,6 +16,7 @@ function App() {
   const [page, setPage] = useState('feed');
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [stats, setStats] = useState({});
   const [profile, setProfile] = useState({});
   const [query, setQuery] = useState('');
@@ -26,7 +27,8 @@ function App() {
   const [error, setError] = useState('');
 
   const notify = message => { setToast(message); window.setTimeout(() => setToast(''), 2600); };
-  const refresh = async () => { try { const [j,s,p] = await Promise.all([api('GET','/api/jobs?limit=300'), api('GET','/api/stats'), api('GET','/api/profile')]); setJobs(j); setStats(s); setProfile(p || {}); } catch (e) { setError(e.message); } };
+  const refresh = async () => { try { const [j,s,p,allProfiles] = await Promise.all([api('GET','/api/jobs?limit=300'), api('GET','/api/stats'), api('GET','/api/profile'), api('GET','/api/profiles')]); setJobs(j); setStats(s); setProfile(p || {}); setProfiles(allProfiles || []); } catch (e) { setError(e.message); } };
+  const switchProfile = async id => { try { await api('POST',`/api/profiles/${id}/activate`); await refresh(); notify('Profile switched'); } catch(e) { notify(e.message); } };
   useEffect(() => { refresh(); }, []);
   useEffect(() => { if (page === 'tracker') api('GET','/api/applications').then(setApplications).catch(() => {}); }, [page]);
 
@@ -43,7 +45,7 @@ function App() {
       <Nav active={page==='tracker'} icon={<KanbanSquare size={16}/>} label="Job Pipeline" count={stats.total_applied} onClick={() => setPage('tracker')}/>
       <div className="nav-label">Setup</div><Nav active={page==='sites'} icon={<Users size={16}/>} label="Job Sites" onClick={() => setPage('sites')}/><Nav active={page==='settings'} icon={<Settings size={16}/>} label="Settings" onClick={() => setPage('settings')}/>
     </nav><div className="connection"><span className="dot"/> Backend connected</div></aside>
-    <main><header><div><small>Workspace</small><h1>{page === 'feed' ? 'Job Feed' : page === 'tracker' ? 'Job Pipeline' : page === 'sites' ? 'Job Sites' : 'Settings'}</h1></div><div className="profile"><span>{profile.profile_name || profile.full_name || 'Profile'}</span></div></header>
+    <main><header><div><small>Workspace</small><h1>{page === 'feed' ? 'Job Feed' : page === 'tracker' ? 'Job Pipeline' : page === 'sites' ? 'Job Sites' : 'Settings'}</h1></div><select className="profile" value={profile.id || ''} onChange={e=>switchProfile(e.target.value)}><option value="">{profile.profile_name || profile.full_name || 'Profile'}</option>{profiles.filter(item=>item.id!==profile.id).map(item=><option key={item.id} value={item.id}>{item.profile_name || item.full_name || `Profile ${item.id}`}</option>)}</select></header>
       <section className="content">{error && <div className="notice error">{error}</div>}{page === 'feed' && <Feed jobs={jobs} query={query} setQuery={setQuery} search={search} busy={busy} scores={scores} removeJob={removeJob} applyJob={applyJob}/>} {page === 'tracker' && <Pipeline jobs={jobs} dragged={dragged} setDragged={setDragged} updateStatus={updateStatus} removeJob={removeJob}/>} {page === 'sites' && <Sites notify={notify}/>} {page === 'settings' && <SettingsView profile={profile} refresh={refresh} notify={notify}/>}</section>
     </main>{toast && <div className="toast">{toast}</div>}
   </div>;
