@@ -160,6 +160,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .score-mid{background:var(--amber-light);color:#92400E;border-color:#FCD34D}
 .score-low{background:var(--red-light);color:var(--red);border-color:#FECACA}
 .jactions{flex-shrink:0;display:flex;gap:6px;align-items:center}
+.kanban-column{transition:border-color .15s,box-shadow .15s}
+.kanban-column.drop-target{border-color:var(--blue)!important;box-shadow:0 0 0 3px rgba(37,99,235,.12),var(--shmd)!important}
+.kanban-card{cursor:grab}
+.kanban-card:active{cursor:grabbing}
 
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}
@@ -1559,14 +1563,14 @@ async function loadPipeline() {
     board.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:start;">
         ${columns.map(col => `
-          <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh)">
+          <div class="kanban-column" data-status="${col.key}" ondragover="allowKanbanDrop(event)" ondragleave="leaveKanbanDrop(event)" ondrop="dropKanbanCard(event, '${col.key}')" style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh)">
             <div style="padding:10px 12px;background:${col.color}20;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
               <span style="font-weight:700;font-size:13px;color:var(--text)">${col.label}</span>
               <span style="font-size:11px;font-weight:700;background:${col.color}22;color:${col.color};padding:3px 8px;border-radius:999px">${groups[col.key].length}</span>
             </div>
             <div style="padding:10px;display:flex;flex-direction:column;gap:8px;min-height:110px">
               ${groups[col.key].length ? groups[col.key].map(job => `
-                <div class="job-card" style="padding:10px 12px;border-radius:10px;cursor:default;box-shadow:none">
+                <div class="job-card kanban-card" draggable="true" ondragstart="dragKanbanCard(event, ${job.id})" ondragend="endKanbanDrag(event)" style="padding:10px 12px;border-radius:10px;cursor:grab;box-shadow:none">
                   <div class="jinfo" style="width:100%">
                     <div class="jtitle" style="font-size:13px">${esc(job.title || 'Untitled role')}</div>
                     <div class="jcomp" style="font-size:12px;margin-bottom:6px">${esc(job.company || 'Unknown company')}</div>
@@ -1651,6 +1655,42 @@ async function updateJobStatus(jobId, status) {
   } catch (e) {
     toast(e.message, 'error');
   }
+}
+
+let draggedKanbanJobId = null;
+
+function dragKanbanCard(event, jobId) {
+  draggedKanbanJobId = jobId;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(jobId));
+  event.currentTarget.style.opacity = '0.55';
+}
+
+function endKanbanDrag(event) {
+  event.currentTarget.style.opacity = '';
+  draggedKanbanJobId = null;
+  document.querySelectorAll('.kanban-column.drop-target').forEach(column => column.classList.remove('drop-target'));
+}
+
+function allowKanbanDrop(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('drop-target');
+}
+
+function leaveKanbanDrop(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    event.currentTarget.classList.remove('drop-target');
+  }
+}
+
+function dropKanbanCard(event, status) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drop-target');
+  const jobId = draggedKanbanJobId || parseInt(event.dataTransfer.getData('text/plain'), 10);
+  if (!jobId) return;
+  const job = jobs.find(item => item.id === jobId);
+  if (job && (job.status || 'new') !== status) updateJobStatus(jobId, status);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
