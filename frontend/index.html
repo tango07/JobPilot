@@ -343,7 +343,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
     </div>
     <div class="nav-item" onclick="go('tracker')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Applications
+      Job Pipeline
       <span class="nav-badge" id="nb-apps">0</span>
     </div>
     <div class="nav-section">Setup</div>
@@ -874,7 +874,7 @@ function go(page) {
   const active = [...document.querySelectorAll('.nav-item')].find(el => el.getAttribute('onclick')?.includes(`'${page}'`));
   if (active) active.classList.add('active');
   document.getElementById('topbar-right').innerHTML = '';
-  const titles = { feed: 'Job Feed', tracker: 'Applications', sites: 'Job Sites', settings: 'Settings' };
+  const titles = { feed: 'Job Feed', tracker: 'Job Pipeline', sites: 'Job Sites', settings: 'Settings' };
   document.getElementById('page-title').textContent = titles[page] || page;
   const renders = { feed: renderFeed, tracker: renderTracker, sites: renderSites, settings: renderSettings };
   (renders[page] || (() => {}))();
@@ -1497,9 +1497,13 @@ function copyText(elId) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function renderTracker() {
   const c = document.getElementById('content');
-  c.innerHTML = `<div class="tabs">
-    <div class="tab active" onclick="loadApps('',this)">All</div>
-    <div class="tab" onclick="loadApps('applied',this)">Applied</div>
+  c.innerHTML = `<div style="margin-bottom:16px">
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">Job pipeline</div>
+    <div style="font-size:12.5px;color:var(--muted)">The board tracks jobs from the feed. The application records below track roles after you submit an application.</div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="loadApps('',this)">All applications</div>
+    <div class="tab" onclick="loadApps('applied',this)">Applied applications</div>
     <div class="tab" onclick="loadApps('interviewing',this)">Interviewing</div>
     <div class="tab" onclick="loadApps('offered',this)">Offered</div>
     <div class="tab" onclick="loadApps('rejected',this)">Rejected</div>
@@ -1608,7 +1612,7 @@ async function loadApps(status, tabEl) {
     const c = document.getElementById('apps-list');
     if (!c) return;
     if (!applications.length) {
-      c.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><h3>No applications here</h3><p>Applications appear here after you apply to jobs.</p></div>`;
+      c.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><h3>No application records here</h3><p>Application records appear here after you apply to jobs.</p></div>`;
       return;
     }
     c.innerHTML = `<div class="jobs-list">${applications.map(a => `
@@ -1637,7 +1641,7 @@ async function loadApps(status, tabEl) {
 }
 
 async function updateApp(id, status) {
-  try { await api('PATCH', `/api/applications/${id}`, { status }); toast('Status updated', 'success'); refreshStats(); }
+  try { await api('PATCH', `/api/applications/${id}`, { status }); toast('Application status updated', 'success'); refreshStats(); }
   catch(e) { toast(e.message, 'error'); }
 }
 
@@ -1649,7 +1653,7 @@ async function updateJobStatus(jobId, status) {
   if (job) job.status = status;
   try {
     await api('PATCH', `/api/jobs/${jobId}/status`, { status });
-    toast('Pipeline stage updated', 'success');
+    toast('Job pipeline stage updated', 'success');
     refreshStats();
   } catch (e) {
     if (job) job.status = previousStatus;
