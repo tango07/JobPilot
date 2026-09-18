@@ -14,11 +14,12 @@ const columns = [{key:'new',label:'Saved',color:'#64748b'}, {key:'applied',label
 
 function App() {
   const [page, setPage] = useState('feed');
-  const [jobs, setJobs] = useState([]);
+  const cached = (() => { try { return JSON.parse(sessionStorage.getItem('jobpilot-cache') || '{}'); } catch (_) { return {}; } })();
+  const [jobs, setJobs] = useState(cached.jobs || []);
   const [applications, setApplications] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [stats, setStats] = useState({});
-  const [profile, setProfile] = useState({});
+  const [profiles, setProfiles] = useState(cached.profiles || []);
+  const [stats, setStats] = useState(cached.stats || {});
+  const [profile, setProfile] = useState(cached.profile || {});
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
@@ -27,7 +28,7 @@ function App() {
   const [error, setError] = useState('');
 
   const notify = message => { setToast(message); window.setTimeout(() => setToast(''), 2600); };
-  const refresh = async () => { try { const [j,s,p,allProfiles] = await Promise.all([api('GET','/api/jobs?limit=300'), api('GET','/api/stats'), api('GET','/api/profile'), api('GET','/api/profiles')]); setJobs(j); setStats(s); setProfile(p || {}); setProfiles(allProfiles || []); } catch (e) { setError(e.message); } };
+  const refresh = async () => { try { const [j,s,p,allProfiles] = await Promise.all([api('GET','/api/jobs?limit=300'), api('GET','/api/stats'), api('GET','/api/profile'), api('GET','/api/profiles')]); setJobs(j); setStats(s); setProfile(p || {}); setProfiles(allProfiles || []); sessionStorage.setItem('jobpilot-cache', JSON.stringify({jobs:j,stats:s,profile:p || {},profiles:allProfiles || []})); } catch (e) { setError(e.message); } };
   const switchProfile = async id => { try { await api('POST',`/api/profiles/${id}/activate`); await refresh(); notify('Profile switched'); } catch(e) { notify(e.message); } };
   useEffect(() => { refresh(); }, []);
   useEffect(() => { if (page === 'tracker') api('GET','/api/applications').then(setApplications).catch(() => {}); }, [page]);

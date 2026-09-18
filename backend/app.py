@@ -1019,4 +1019,5 @@ async def api_apply_all():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8765, reload=False)
+    import os
+    uvicorn.run("app:app", host="127.0.0.1", port=int(os.getenv("PORT", "8765")), reload=False)

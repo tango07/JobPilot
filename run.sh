@@ -9,15 +9,16 @@ if [ ! -d "venv" ]; then
 fi
 
 source venv/bin/activate
+PORT=${PORT:-8765}
 
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   JobPilot is starting…              ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
-echo "   Open in browser:  http://127.0.0.1:8765"
+echo "   Open in browser:  http://127.0.0.1:${PORT}"
 echo "   Press Ctrl+C to stop."
 echo ""
 
 cd backend
-python app.py
+PORT="${PORT}" python app.py
