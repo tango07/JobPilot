@@ -1642,25 +1642,30 @@ async function updateApp(id, status) {
 }
 
 async function updateJobStatus(jobId, status) {
+  const job = jobs.find(item => item.id === jobId);
+  const previousStatus = job?.status || 'new';
+  if (job && previousStatus === status) return;
+
+  if (job) job.status = status;
   try {
     await api('PATCH', `/api/jobs/${jobId}/status`, { status });
     toast('Pipeline stage updated', 'success');
-    if (jobs.length) {
-      const idx = jobs.findIndex(j => j.id === jobId);
-      if (idx >= 0) jobs[idx].status = status;
-    }
-    await loadPipeline();
-    await loadApps('');
     refreshStats();
   } catch (e) {
+    if (job) job.status = previousStatus;
+    await loadPipeline();
     toast(e.message, 'error');
   }
 }
 
 let draggedKanbanJobId = null;
+let draggedKanbanCard = null;
+let draggedKanbanColumn = null;
 
 function dragKanbanCard(event, jobId) {
   draggedKanbanJobId = jobId;
+  draggedKanbanCard = event.currentTarget;
+  draggedKanbanColumn = event.currentTarget.closest('.kanban-column');
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', String(jobId));
   event.currentTarget.style.opacity = '0.55';
@@ -1669,6 +1674,8 @@ function dragKanbanCard(event, jobId) {
 function endKanbanDrag(event) {
   event.currentTarget.style.opacity = '';
   draggedKanbanJobId = null;
+  draggedKanbanCard = null;
+  draggedKanbanColumn = null;
   document.querySelectorAll('.kanban-column.drop-target').forEach(column => column.classList.remove('drop-target'));
 }
 
@@ -1690,7 +1697,23 @@ function dropKanbanCard(event, status) {
   const jobId = draggedKanbanJobId || parseInt(event.dataTransfer.getData('text/plain'), 10);
   if (!jobId) return;
   const job = jobs.find(item => item.id === jobId);
-  if (job && (job.status || 'new') !== status) updateJobStatus(jobId, status);
+  if (!job || (job.status || 'new') === status) return;
+
+  const body = event.currentTarget.querySelector('[style*="min-height"]');
+  if (draggedKanbanCard && body) {
+    const emptyState = body.querySelector(':scope > div:not(.kanban-card)');
+    if (emptyState) emptyState.remove();
+    body.appendChild(draggedKanbanCard);
+    updateKanbanCount(event.currentTarget);
+    if (draggedKanbanColumn) updateKanbanCount(draggedKanbanColumn);
+  }
+  updateJobStatus(jobId, status);
+}
+
+function updateKanbanCount(column) {
+  const count = column.querySelector('div[style*="border-bottom"] span:last-child');
+  const body = column.querySelector('[style*="min-height"]');
+  if (count && body) count.textContent = body.querySelectorAll('.kanban-card').length;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
