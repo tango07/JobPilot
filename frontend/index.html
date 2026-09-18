@@ -1365,6 +1365,9 @@ function renderJobCards(list) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         </button>
         <a href="${esc(j.url)}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+        <button class="btn btn-danger btn-sm" onclick="deleteJob(${j.id})" title="Delete job">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6m3 0V4h8v2"/></svg>
+        </button>
         <button class="btn btn-primary btn-sm" onclick="applySingle(${j.id})" id="ab-${j.id}" ${j.status==='applied'?'disabled':''}>
           ${j.status==='applied'?'Applied':'Apply'}
         </button>
@@ -1591,6 +1594,7 @@ async function loadPipeline() {
                         <option value="rejected" ${job.status === 'rejected' ? 'selected' : ''}>Rejected</option>
                         <option value="withdrawn" ${job.status === 'withdrawn' ? 'selected' : ''}>Withdrawn</option>
                       </select>
+                      <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteJob(${job.id})" title="Delete job">Delete job</button>
                     </div>
                   </div>
                 </div>
@@ -1643,6 +1647,30 @@ async function loadApps(status, tabEl) {
 async function updateApp(id, status) {
   try { await api('PATCH', `/api/applications/${id}`, { status }); toast('Application status updated', 'success'); refreshStats(); }
   catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteJob(jobId) {
+  const job = jobs.find(item => item.id === jobId);
+  const title = job?.title || 'this job';
+  if (!confirm(`Delete ${title}? This also removes its application record, reminders, and match feedback.`)) return;
+
+  try {
+    await api('DELETE', `/api/jobs/${jobId}`);
+    jobs = jobs.filter(item => item.id !== jobId);
+    delete jobMatchScores[jobId];
+    selectedJobs.delete(jobId);
+    toast('Job deleted', 'success');
+    if (currentPage === 'tracker') {
+      await loadPipeline();
+      await loadApps('');
+    } else {
+      filterJobs();
+      updateApplyBanner();
+    }
+    refreshStats();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function updateJobStatus(jobId, status) {

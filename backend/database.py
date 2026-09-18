@@ -487,6 +487,19 @@ def update_job_status(job_id: int, status: str) -> None:
         conn.execute("UPDATE jobs SET status=? WHERE id=?", (status, job_id))
 
 
+def delete_job(job_id: int) -> bool:
+    init_db()
+    with get_conn() as conn:
+        exists = conn.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if not exists:
+            return False
+        conn.execute("DELETE FROM applications WHERE job_id=?", (job_id,))
+        conn.execute("DELETE FROM reminders WHERE job_id=?", (job_id,))
+        conn.execute("DELETE FROM job_feedback WHERE job_id=?", (job_id,))
+        conn.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+        return True
+
+
 def count_jobs(site: str = None) -> int:
     query = "SELECT COUNT(*) FROM jobs"
     params = []

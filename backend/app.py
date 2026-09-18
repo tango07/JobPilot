@@ -36,6 +36,7 @@ from database import (
     create_saved_search, list_saved_searches, delete_saved_search,
     create_reminder, list_reminders, mark_reminder_done,
     create_feedback, list_feedback, feedback_summary,
+    delete_job,
 )
 from encryption import encrypt, decrypt
 from scrapers.base import set_headless_mode
@@ -675,6 +676,13 @@ async def api_update_job_status(job_id: int, data: JobStatusUpdate):
         raise HTTPException(status_code=400, detail=f"Invalid status: {data.status}")
     update_job_status(job_id, data.status)
     return {"status": "updated", "job_id": job_id, "new_status": data.status}
+
+
+@app.delete("/api/jobs/{job_id}")
+async def api_delete_job(job_id: int):
+    if not delete_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"status": "deleted", "job_id": job_id}
 
 # ── Dashboard stats ────────────────────────────────────────────────────────────
 
