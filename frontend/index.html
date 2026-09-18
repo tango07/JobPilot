@@ -1703,6 +1703,8 @@ function dropKanbanCard(event, status) {
   if (draggedKanbanCard && body) {
     const emptyState = body.querySelector(':scope > div:not(.kanban-card)');
     if (emptyState) emptyState.remove();
+    const statusSelect = draggedKanbanCard.querySelector('select');
+    if (statusSelect) statusSelect.value = status;
     body.appendChild(draggedKanbanCard);
     updateKanbanCount(event.currentTarget);
     if (draggedKanbanColumn) updateKanbanCount(draggedKanbanColumn);
