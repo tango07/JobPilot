@@ -439,6 +439,7 @@ let jobs = [], applications = [], stats = {}, profileSkills = [];
 let lastSearchKw = '';
 let connectedSites = new Set(); // sites that have saved credentials
 let jobMatchScores = {};
+let scoringRun = 0;
 
 // ── Profile / Account helpers ──────────────────────────────────────────────
 const _PROF_COLORS = ['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6'];
@@ -817,29 +818,33 @@ function scoreClass(score) {
 }
 
 async function enrichJobScores() {
+  const run = ++scoringRun;
   const ids = [...new Set(jobs.map(job => job.id).filter(Boolean))];
   if (!ids.length) return;
 
   const pending = ids.filter(id => !(id in jobMatchScores));
-  if (!pending.length) return;
-
-  const batch = pending.slice(0, 12);
-  let results = [];
-  try {
-    const response = await api('POST', '/api/ai/score-jobs', { job_ids: batch });
-    results = Array.isArray(response?.results) ? response.results : [];
-  } catch (_) {
-    return;
-  }
-
-  results.forEach(item => {
-    jobMatchScores[item.id] = Number(item.score ?? 0);
-    const idx = jobs.findIndex(job => job.id === item.id);
-    if (idx >= 0) {
-      jobs[idx].match_score = Number(item.score ?? 0);
-      jobs[idx].match_reasons = Array.isArray(item.reasons) ? item.reasons : [];
+  for (let offset = 0; offset < pending.length; offset += 12) {
+    if (run !== scoringRun) return;
+    const batch = pending.slice(offset, offset + 12);
+    try {
+      const response = await api('POST', '/api/ai/score-jobs', { job_ids: batch });
+      const results = Array.isArray(response?.results) ? response.results : [];
+      results.forEach(item => {
+        jobMatchScores[item.id] = Number(item.score ?? 0);
+        const idx = jobs.findIndex(job => job.id === item.id);
+        if (idx >= 0) {
+          jobs[idx].match_score = Number(item.score ?? 0);
+          jobs[idx].match_reasons = Array.isArray(item.reasons) ? item.reasons : [];
+        }
+      });
+      filterJobs();
+    } catch (_) {
+      // Keep already-scored jobs visible if a later batch fails.
+      return;
     }
-  });
+    // Yield to rendering and user input before starting the next batch.
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
 }
 
 // ── Toast ──
@@ -1204,7 +1209,6 @@ async function runSearch() {
 async function loadFeedJobs() {
   try {
     jobs = await api('GET', '/api/jobs?limit=300');
-    await enrichJobScores();
     // After a search, reset all filters and apply only the search keyword
     // so the user immediately sees the results without restrictive stale filters
     if (lastSearchKw) {
@@ -1217,6 +1221,8 @@ async function loadFeedJobs() {
     filterJobs();
     updateApplyBanner();
     updateStatsUI();
+    // Score in the background so the feed is usable immediately. Badges update progressively.
+    enrichJobScores();
   } catch(e) { /* backend may not be running yet */ }
 }
 
