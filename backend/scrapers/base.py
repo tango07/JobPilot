@@ -1,7 +1,7 @@
 """
 Base scraper class with Playwright browser management.
 
-Uses a PERSISTENT browser context stored in ~/.jobpilot/browser_session/.
+Uses a PERSISTENT browser context stored per profile in ~/.jobpilot/browser_sessions/.
 This means:
   - First run: browser opens, you log in normally (including Google Sign-In)
   - All future runs: session cookies are reloaded automatically — no re-login needed
@@ -14,6 +14,7 @@ race to launch_persistent_context() with the same user-data-dir.
 """
 
 import asyncio
+import os
 import random
 import sys
 from abc import ABC, abstractmethod
@@ -26,12 +27,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import ai as _ai
 
 # Session data is saved here — survives across app restarts
-SESSION_DIR = Path.home() / ".jobpilot" / "browser_session"
-SESSION_DIR.mkdir(parents=True, exist_ok=True)
+SESSION_ROOT = Path(os.getenv("JOBPILOT_SESSION_DIR", Path.home() / ".jobpilot" / "browser_sessions"))
 
 # Shared persistent context (one browser profile for all scrapers)
 _playwright: Optional[Playwright] = None
 _context: Optional[BrowserContext] = None
+_context_profile_id: Optional[int] = None
 
 # Lock prevents concurrent context initialisation (race → "existing browser session" crash)
 _context_lock = asyncio.Lock()
@@ -46,7 +47,7 @@ async def set_headless_mode(headless: bool):
     Closes the current context so the next get_context() call reopens it
     with the new setting. Session cookies are persisted to disk and reloaded.
     """
-    global _headless, _playwright, _context
+    global _headless, _playwright, _context, _context_profile_id
     if _headless == headless:
         return  # nothing to do
     _headless = headless
@@ -57,6 +58,7 @@ async def set_headless_mode(headless: bool):
             except Exception:
                 pass
             _context = None
+            _context_profile_id = None
         if _playwright is not None:
             try:
                 await _playwright.stop()
@@ -65,7 +67,7 @@ async def set_headless_mode(headless: bool):
             _playwright = None
 
 
-async def get_context() -> BrowserContext:
+async def get_context(profile_id: int = 1) -> BrowserContext:
     """
     Return the shared persistent browser context, creating it if needed.
     The asyncio.Lock ensures only one coroutine ever calls launch_persistent_context;
@@ -73,10 +75,23 @@ async def get_context() -> BrowserContext:
     Cookies, localStorage, and session tokens are saved to SESSION_DIR
     and reloaded on every startup — so you only need to log in once.
     """
-    global _playwright, _context
+    global _playwright, _context, _context_profile_id
 
     async with _context_lock:
         # Re-check inside the lock in case another coroutine already created it
+        if _context is not None and _context_profile_id != profile_id:
+            try:
+                await _context.close()
+            except Exception:
+                pass
+            _context = None
+            if _playwright is not None:
+                try:
+                    await _playwright.stop()
+                except Exception:
+                    pass
+                _playwright = None
+
         if _context is not None:
             try:
                 # Quick health check — accessing pages raises if context is closed
@@ -92,9 +107,11 @@ async def get_context() -> BrowserContext:
                         pass
                     _playwright = None
 
+        session_dir = SESSION_ROOT / str(profile_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
         _playwright = await async_playwright().start()
         _context = await _playwright.chromium.launch_persistent_context(
-            user_data_dir=str(SESSION_DIR),
+            user_data_dir=str(session_dir),
             headless=_headless,      # False for SSO login, True for automated runs
             channel="chromium",      # Use the Playwright-managed Chromium build
             viewport={"width": 1280, "height": 800},
@@ -114,6 +131,7 @@ async def get_context() -> BrowserContext:
             ignore_default_args=["--enable-automation"],
             slow_mo=50,              # Slight human-like pacing for all interactions
         )
+        _context_profile_id = profile_id
         # Patch automation-detection fingerprints on every new page
         await _context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -142,7 +160,7 @@ async def get_context() -> BrowserContext:
 
 
 async def close_browser():
-    global _playwright, _context
+    global _playwright, _context, _context_profile_id
     async with _context_lock:
         if _context:
             try:
@@ -150,6 +168,7 @@ async def close_browser():
             except Exception:
                 pass
             _context = None
+            _context_profile_id = None
         if _playwright:
             try:
                 await _playwright.stop()
@@ -159,8 +178,8 @@ async def close_browser():
 
 
 # Legacy alias kept for compatibility
-async def get_browser():
-    ctx = await get_context()
+async def get_browser(profile_id: int = 1):
+    ctx = await get_context(profile_id)
     return None, ctx
 
 
@@ -184,8 +203,10 @@ class BaseScraper(ABC):
     base_url: str = ""
     login_url: str = ""
 
-    def __init__(self, log_callback: Optional[Callable[[str, str], None]] = None):
+    def __init__(self, log_callback: Optional[Callable[[str, str], None]] = None,
+                 profile_id: int = 1):
         self.log = log_callback or (lambda msg, level="info": None)
+        self.profile_id = profile_id
         self.page: Optional[Page] = None
 
     async def _get_page(self) -> Page:
@@ -194,7 +215,7 @@ class BaseScraper(ABC):
         Gracefully recreates the context if it has been closed externally.
         """
         try:
-            context = await get_context()
+            context = await get_context(self.profile_id)
             if self.page is None or self.page.is_closed():
                 self.page = await context.new_page()
             return self.page
@@ -202,7 +223,7 @@ class BaseScraper(ABC):
             # Context was closed; reset and retry once
             global _context, _playwright
             _context = None
-            context = await get_context()
+            context = await get_context(self.profile_id)
             self.page = await context.new_page()
             return self.page
 

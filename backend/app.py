@@ -11,12 +11,18 @@ Serves the web UI and provides REST + WebSocket APIs for:
 import asyncio
 import json
 import sys
+import ipaddress
+import secrets
+from uuid import uuid4
+from contextlib import asynccontextmanager
+from functools import wraps
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, File, UploadFile, Request, Response
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -24,14 +30,14 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database import (
-    init_db, get_profile, save_profile, get_credential, save_credential,
+    init_db, get_profile, save_profile, get_credential, save_credential, delete_credential,
     set_logged_in, all_credentials, upsert_job, get_jobs, update_job_status,
     count_jobs, create_application, get_applications, update_application_status,
     count_applications,
     get_custom_sites, upsert_custom_site, delete_custom_site,
-    cleanup_old_jobs, clear_all_jobs,
+    cleanup_old_jobs_for_all_profiles, clear_all_jobs,
     list_profiles, create_profile, activate_profile, delete_profile,
-    set_profile_password, verify_profile_password,
+    set_profile_password, verify_profile_password, profile_requires_password,
     get_profile_claude_key, set_profile_claude_key,
     create_saved_search, list_saved_searches, delete_saved_search,
     create_reminder, list_reminders, mark_reminder_done,
@@ -50,8 +56,6 @@ import ai as ai_module
 
 # ── App setup ──────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Job Search App", version="1.0.0")
-
 FRONTEND_SOURCE_DIR = Path(__file__).parent.parent / "frontend"
 FRONTEND_DIR = FRONTEND_SOURCE_DIR / "dist"
 if not FRONTEND_DIR.exists():
@@ -60,10 +64,8 @@ UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 AVATARS_DIR = Path(__file__).parent.parent / "avatars"
 AVATARS_DIR.mkdir(exist_ok=True)
-
-# Serve static frontend
-if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+MAX_RESUME_BYTES = 10 * 1024 * 1024
+ALLOWED_RESUME_SUFFIXES = {".pdf", ".docx", ".txt"}
 
 # WebSocket connection manager for real-time log streaming
 class ConnectionManager:
@@ -102,7 +104,62 @@ def make_log_callback(action: str):
 # ── Cancel flag ────────────────────────────────────────────────────────────────
 # A simple in-process flag. Set to True via POST /api/stop; cleared at the
 # start of every new search-and-apply run.
-_CANCEL = {"requested": False}
+_CANCEL = {"requested": False, "run_id": None}
+_BROWSER_RUN_LOCK = asyncio.Lock()
+_ACTIVE_BROWSER_RUN: Optional[Dict[str, str]] = None
+_PROFILE_UNLOCK_SESSIONS: Dict[str, Dict[str, Any]] = {}
+_PROFILE_SESSION_COOKIE = "jobpilot_profile_unlock"
+_PROFILE_SESSION_TTL = timedelta(hours=8)
+
+
+def _unlock_profile(response: Response, profile_id: int) -> None:
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + _PROFILE_SESSION_TTL
+    _PROFILE_UNLOCK_SESSIONS[token] = {"profile_id": profile_id, "expires_at": expires_at}
+    response.set_cookie(
+        _PROFILE_SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite="strict",
+        max_age=int(_PROFILE_SESSION_TTL.total_seconds()),
+    )
+
+
+def _require_profile_unlock(request: Request, profile_id: int) -> None:
+    if not profile_requires_password(profile_id):
+        return
+    token = request.cookies.get(_PROFILE_SESSION_COOKIE)
+    session = _PROFILE_UNLOCK_SESSIONS.get(token or "")
+    if not session or session["profile_id"] != profile_id or session["expires_at"] <= datetime.now(timezone.utc):
+        if token:
+            _PROFILE_UNLOCK_SESSIONS.pop(token, None)
+        raise HTTPException(status_code=403, detail="Unlock this profile with its password before switching to it")
+
+
+def exclusive_browser_run(operation: str):
+    """Serialize Playwright operations that share the persistent browser context."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapped(*args, **kwargs):
+            global _ACTIVE_BROWSER_RUN
+            if _BROWSER_RUN_LOCK.locked():
+                active = _ACTIVE_BROWSER_RUN or {}
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"A {active.get('operation', 'browser')} operation is already running. Stop or wait for it before starting another.",
+                )
+            async with _BROWSER_RUN_LOCK:
+                run_id = uuid4().hex
+                _ACTIVE_BROWSER_RUN = {"id": run_id, "operation": operation}
+                _CANCEL.update({"requested": False, "run_id": run_id})
+                try:
+                    return await func(*args, **kwargs)
+                finally:
+                    if _CANCEL.get("run_id") == run_id:
+                        _CANCEL.update({"requested": False, "run_id": None})
+                    _ACTIVE_BROWSER_RUN = None
+        return wrapped
+    return decorator
 
 # ── Scraper registry ───────────────────────────────────────────────────────────
 
@@ -118,9 +175,18 @@ SCRAPERS = {
 CUSTOM_SCRAPERS: Dict[str, Dict] = {}
 
 
-def get_scraper(site: str, log_cb=None):
+def reload_custom_scrapers() -> None:
+    """Refresh the active profile's custom-site registry."""
+    CUSTOM_SCRAPERS.clear()
+    for site in get_custom_sites():
+        CUSTOM_SCRAPERS[site["key"]] = site
+
+
+def get_scraper(site: str, log_cb=None, profile_id: int = None):
+    if profile_id is None:
+        profile_id = (get_profile() or {}).get("id", 1)
     if site in SCRAPERS:
-        return SCRAPERS[site](log_callback=log_cb)
+        return SCRAPERS[site](log_callback=log_cb, profile_id=profile_id)
     if site in CUSTOM_SCRAPERS:
         cfg = CUSTOM_SCRAPERS[site]
         return GenericScraper(
@@ -129,6 +195,7 @@ def get_scraper(site: str, log_cb=None):
             base_url=cfg["base_url"],
             search_url_template=cfg["search_url"],
             log_callback=log_cb,
+            profile_id=profile_id,
         )
     raise HTTPException(status_code=400, detail=f"Unknown site: {site}")
 
@@ -140,17 +207,24 @@ def all_sites() -> Dict[str, str]:
 
 # ── Startup ────────────────────────────────────────────────────────────────────
 
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     init_db()
-    # Auto-delete jobs older than 10 days
-    deleted = cleanup_old_jobs(days=10)
+    # Auto-delete stale unreviewed jobs while retaining application history.
+    deleted = cleanup_old_jobs_for_all_profiles(days=10)
     if deleted:
         print(f"🗑  Cleaned up {deleted} job(s) older than 10 days")
     # Load custom sites into CUSTOM_SCRAPERS registry
-    for site in get_custom_sites():
-        CUSTOM_SCRAPERS[site["key"]] = site
+    reload_custom_scrapers()
     print(f"✓ Database initialized ({len(CUSTOM_SCRAPERS)} custom site(s) loaded)")
+    yield
+
+
+app = FastAPI(title="Job Search App", version="1.0.0", lifespan=lifespan)
+
+# Serve static frontend
+if FRONTEND_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 
@@ -245,10 +319,12 @@ async def api_create_profile(data: ProfileCreateData):
     return create_profile(data.name.strip())
 
 @app.post("/api/profiles/{profile_id}/activate")
-async def api_activate_profile(profile_id: int):
+async def api_activate_profile(profile_id: int, request: Request):
+    _require_profile_unlock(request, profile_id)
     profile = activate_profile(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
+    reload_custom_scrapers()
     return profile
 
 @app.delete("/api/profiles/{profile_id}")
@@ -256,6 +332,7 @@ async def api_delete_profile(profile_id: int):
     ok = delete_profile(profile_id)
     if not ok:
         raise HTTPException(status_code=400, detail="Cannot delete the last profile")
+    reload_custom_scrapers()
     return {"ok": True}
 
 @app.post("/api/profiles/{profile_id}/avatar")
@@ -305,14 +382,24 @@ async def api_verify_password(profile_id: int, data: VerifyPasswordData):
     ok = verify_profile_password(profile_id, data.password)
     if not ok:
         raise HTTPException(status_code=403, detail="Incorrect password")
-    return {"ok": True}
+    response = JSONResponse({"ok": True})
+    _unlock_profile(response, profile_id)
+    return response
 
 @app.post("/api/upload-resume")
 async def upload_resume(file: UploadFile = File(...)):
-    dest = UPLOADS_DIR / file.filename
+    original_name = Path(file.filename or "").name
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in ALLOWED_RESUME_SUFFIXES:
+        raise HTTPException(status_code=400, detail="Upload a PDF, DOCX, or TXT resume")
     content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="The uploaded resume is empty")
+    if len(content) > MAX_RESUME_BYTES:
+        raise HTTPException(status_code=413, detail="Resume files must be 10 MB or smaller")
+    dest = UPLOADS_DIR / f"{uuid4().hex}{suffix}"
     dest.write_bytes(content)
-    return {"path": str(dest), "filename": file.filename}
+    return {"path": str(dest), "filename": original_name}
 
 # ── Credentials ────────────────────────────────────────────────────────────────
 
@@ -331,9 +418,7 @@ async def api_save_credential(site: str, data: CredentialData):
 
 @app.delete("/api/credentials/{site}")
 async def api_delete_credential(site: str):
-    from database import get_conn
-    with get_conn() as conn:
-        conn.execute("DELETE FROM credentials WHERE site=?", (site,))
+    delete_credential(site)
     return {"status": "deleted"}
 
 # ── Custom Sites ──────────────────────────────────────────────────────────────
@@ -344,6 +429,26 @@ def _make_site_key(name: str) -> str:
     """Convert a display name to a safe lowercase key, e.g. 'Wellfound' → 'wellfound'."""
     key = _re.sub(r"[^a-z0-9_]", "", name.lower().replace(" ", "_"))[:24]
     return key or "custom"
+
+
+def _validate_public_http_url(value: str, field_name: str) -> str:
+    """Allow only normal public web URLs for browser-driven custom sites."""
+    candidate = (value or "").strip()
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be a complete http(s) URL")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail=f"{field_name} must not include credentials")
+    hostname = parsed.hostname.lower()
+    if hostname == "localhost":
+        raise HTTPException(status_code=400, detail=f"{field_name} must not target localhost")
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return candidate
+    if address.is_private or address.is_loopback or address.is_link_local or address.is_reserved:
+        raise HTTPException(status_code=400, detail=f"{field_name} must not target a private network")
+    return candidate
 
 PALETTE = [
     ("#1D4ED8", "#DBEAFE"), ("#065F46", "#D1FAE5"), ("#92400E", "#FEF3C7"),
@@ -357,7 +462,12 @@ def api_get_custom_sites():
 
 @app.post("/api/sites/custom")
 def api_add_custom_site(data: CustomSiteData):
-    key = _make_site_key(data.name)
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Site name cannot be empty")
+    base_url = _validate_public_http_url(data.base_url, "Base URL")
+    search_url = _validate_public_http_url(data.search_url, "Search URL")
+    key = _make_site_key(name)
     # Avoid colliding with built-in sites
     if key in SCRAPERS:
         key = f"custom_{key}"
@@ -367,14 +477,14 @@ def api_add_custom_site(data: CustomSiteData):
     color = data.color or PALETTE[idx][0]
     bg = data.bg or PALETTE[idx][1]
     # Auto-generate 2-letter label from name words
-    words = data.name.strip().split()
+    words = name.split()
     label = (words[0][0] + (words[1][0] if len(words) > 1 else words[0][1])).upper() if words else "??"
     label = data.label or label
-    upsert_custom_site(key, data.name, data.base_url.rstrip("/"), data.search_url, color, bg, label)
+    upsert_custom_site(key, name, base_url.rstrip("/"), search_url, color, bg, label)
     # Register in live CUSTOM_SCRAPERS
     CUSTOM_SCRAPERS[key] = {
-        "key": key, "name": data.name, "base_url": data.base_url.rstrip("/"),
-        "search_url": data.search_url, "color": color, "bg": bg, "label": label,
+        "key": key, "name": name, "base_url": base_url.rstrip("/"),
+        "search_url": search_url, "color": color, "bg": bg, "label": label,
     }
     return {"key": key, "name": data.name, "color": color, "bg": bg, "label": label}
 
@@ -395,6 +505,7 @@ def api_force_connect_custom_site(key: str):
 
 
 @app.post("/api/login/{site}")
+@exclusive_browser_run("login")
 async def api_login(site: str):
     """Login with saved email + password credentials."""
     cred = get_credential(site)
@@ -411,6 +522,7 @@ async def api_login(site: str):
     return {"status": "logged_in", "site": site, "method": "password"}
 
 @app.post("/api/login/{site}/sso")
+@exclusive_browser_run("SSO login")
 async def api_sso_login(site: str):
     """
     Open the browser to the site's login page and wait for the user to
@@ -438,6 +550,7 @@ async def api_sso_login(site: str):
 # ── Job Search ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/search")
+@exclusive_browser_run("search")
 async def api_search(params: SearchParams):
     """Kick off job search across selected sites. Results are saved to DB."""
     profile = get_profile() or {}
@@ -507,8 +620,7 @@ async def api_get_jobs(site: str = None, status: str = None, limit: int = 100, o
 async def api_count_jobs(site: str = None):
     return {"count": count_jobs(site=site)}
 
-@app.post("/api/jobs/{job_id}/apply")
-async def api_apply(job_id: int):
+async def _apply_job(job_id: int):
     """Apply to a specific job by its DB ID."""
     jobs = get_jobs()
     job = next((j for j in jobs if j["id"] == job_id), None)
@@ -545,6 +657,13 @@ async def api_apply(job_id: int):
     else:
         await manager.broadcast({"type": "applied", "job_id": job_id, "success": False})
         return {"status": "manual_needed", "url": job["url"]}
+
+
+@app.post("/api/jobs/{job_id}/apply")
+@exclusive_browser_run("application")
+async def api_apply(job_id: int):
+    """Apply to one job without allowing another browser operation to overlap."""
+    return await _apply_job(job_id)
 
 
 class SavedSearchData(BaseModel):
@@ -639,13 +758,14 @@ async def api_create_feedback(data: FeedbackData):
     return create_feedback(job_id=data.job_id, sentiment=data.sentiment, comment=data.comment)
 
 @app.post("/api/jobs/apply-batch")
+@exclusive_browser_run("batch application")
 async def api_apply_batch(params: dict):
     """Apply to multiple jobs. Body: {"job_ids": [1, 2, 3]}"""
     job_ids = params.get("job_ids", [])
     results = []
     for jid in job_ids:
         try:
-            result = await api_apply(jid)
+            result = await _apply_job(jid)
             results.append({"job_id": jid, **result})
             await asyncio.sleep(2)  # Rate limit between applications
         except Exception as e:
@@ -692,9 +812,11 @@ async def api_delete_job(job_id: int):
 @app.post("/api/stop")
 async def api_stop():
     """Signal any running search-and-apply loop to stop after the current job."""
+    if not _ACTIVE_BROWSER_RUN:
+        raise HTTPException(status_code=409, detail="No browser operation is running")
     _CANCEL["requested"] = True
-    await manager.broadcast({"type": "apply_stopped", "message": "Stop requested — finishing current job then stopping."})
-    return {"status": "stopping"}
+    await manager.broadcast({"type": "apply_stopped", "run_id": _ACTIVE_BROWSER_RUN["id"], "message": "Stop requested — finishing current job then stopping."})
+    return {"status": "stopping", "run_id": _ACTIVE_BROWSER_RUN["id"]}
 
 @app.delete("/api/jobs/all")
 async def api_clear_all_jobs():
@@ -845,6 +967,7 @@ async def api_autosearch(params: AutoSearchParams):
 # ── Search + auto-apply in one shot ───────────────────────────────────────────
 
 @app.post("/api/search-and-apply")
+@exclusive_browser_run("search and apply")
 async def api_search_and_apply(params: AutoSearchParams):
     """
     Search selected sites for jobs, then immediately auto-apply to every new
@@ -925,7 +1048,7 @@ async def api_search_and_apply(params: AutoSearchParams):
                 "job": f"{job['title']} @ {job['company']}",
             })
             try:
-                result = await api_apply(job["id"])
+                result = await _apply_job(job["id"])
                 if result.get("status") == "applied":
                     applied += 1
                 else:
@@ -954,6 +1077,7 @@ async def api_search_and_apply(params: AutoSearchParams):
 # ── Apply All new jobs ─────────────────────────────────────────────────────────
 
 @app.post("/api/apply-all")
+@exclusive_browser_run("bulk application")
 async def api_apply_all():
     """
     Apply to every job in the DB that hasn't been applied to yet.
@@ -990,7 +1114,7 @@ async def api_apply_all():
                 "job": f"{job['title']} @ {job['company']}",
             })
             try:
-                result = await api_apply(job["id"])
+                result = await _apply_job(job["id"])
                 if result.get("status") == "applied":
                     applied += 1
                 else:

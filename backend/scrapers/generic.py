@@ -78,13 +78,14 @@ class GenericScraper(BaseScraper):
         base_url: str,
         search_url_template: str,
         log_callback: Optional[Callable] = None,
+        profile_id: int = 1,
     ):
         self.site_name = site_key
         self._display_name = display_name
         self.base_url = base_url.rstrip("/")
         self.login_url = base_url
         self.search_url_template = search_url_template
-        super().__init__(log_callback)
+        super().__init__(log_callback, profile_id=profile_id)
 
     # Keywords that indicate a page is an auth/login page
     _AUTH_KEYWORDS = (

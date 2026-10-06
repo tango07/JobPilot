@@ -1,14 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BriefcaseBusiness,
+  Camera,
   Check,
   ChevronRight,
   CirclePlus,
   FileText,
   KanbanSquare,
+  Lock,
   LoaderCircle,
   LogOut,
+  Plus,
   Search,
   Settings,
   Trash2,
@@ -39,8 +42,20 @@ const columns = [
   { key: "rejected", label: "Rejected", color: "#dc2626" },
 ];
 
+// ── Profile colour helpers ──────────────────────────────────────────────────
+const PROF_COLORS = ["#6366f1","#8b5cf6","#10b981","#f59e0b","#ef4444","#3b82f6","#ec4899","#14b8a6"];
+function profColor(id) { return PROF_COLORS[((id || 1) - 1) % PROF_COLORS.length]; }
+function profInitials(p) {
+  const n = p?.profile_name || p?.full_name || "";
+  return n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("") || "?";
+}
+
 function App() {
   const [page, setPage] = useState("feed");
+  // ── Login gate ──
+  const [loggedIn, setLoggedIn] = useState(() => !!sessionStorage.getItem("jp_session"));
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+
   const cached = (() => {
     try {
       return JSON.parse(sessionStorage.getItem("jobpilot-cache") || "{}");
@@ -59,6 +74,8 @@ function App() {
   const [dragged, setDragged] = useState(null);
   const [scores, setScores] = useState({});
   const [error, setError] = useState("");
+  const [selectedJobs, setSelectedJobs] = useState(new Set());
+  const [applying, setApplying] = useState(false);
 
   const notify = (message) => {
     setToast(message);
@@ -89,11 +106,24 @@ function App() {
       setError(e.message);
     }
   };
-  const switchProfile = async (id) => {
+  const enterApp = useCallback(async () => {
+    sessionStorage.setItem("jp_session", "1");
+    setLoggedIn(true);
+    await refresh();
+  }, []);
+
+  const openLoginPage = () => {
+    sessionStorage.removeItem("jp_session");
+    setLoggedIn(false);
+  };
+
+  const doSwitchProfile = async (id) => {
     try {
       await api("POST", `/api/profiles/${id}/activate`);
+      setScores({});
+      setShowSwitchModal(false);
       await refresh();
-      notify("Profile switched");
+      notify("Account switched");
     } catch (e) {
       notify(e.message);
     }
@@ -171,6 +201,18 @@ function App() {
       notify(e.message);
     }
   };
+  const clearJobs = async () => {
+    if (!window.confirm("Delete all stored jobs?")) return;
+    try {
+      await api("DELETE", "/api/jobs/all");
+      setJobs([]);
+      setSelectedJobs(new Set());
+      notify("Jobs cleared");
+      await refresh();
+    } catch (e) {
+      notify(e.message);
+    }
+  };
   const applyJob = async (id) => {
     try {
       const result = await api("POST", `/api/jobs/${id}/apply`);
@@ -184,9 +226,70 @@ function App() {
       notify(e.message);
     }
   };
+  const toggleJob = (id) =>
+    setSelectedJobs((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const applySelected = async () => {
+    if (!selectedJobs.size) return notify("Select jobs first");
+    setApplying(true);
+    try {
+      await api("POST", "/api/jobs/apply-batch", {
+        job_ids: [...selectedJobs],
+      });
+      setSelectedJobs(new Set());
+      await refresh();
+      notify("Selected applications processed");
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setApplying(false);
+    }
+  };
+  const applyAll = async () => {
+    if (
+      !window.confirm(
+        "Apply to all new jobs? This opens the automated application workflow.",
+      )
+    )
+      return;
+    setApplying(true);
+    try {
+      await api("POST", "/api/apply-all");
+      await refresh();
+      notify("Bulk application workflow finished");
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  // Show login page on fresh session
+  if (!loggedIn) {
+    return (
+      <LoginPage
+        profiles={profiles}
+        loadProfiles={refresh}
+        onEnter={enterApp}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
+      {showSwitchModal && (
+        <ProfileSwitchModal
+          profiles={profiles}
+          currentId={profile.id}
+          onSwitch={doSwitchProfile}
+          onClose={() => setShowSwitchModal(false)}
+          notify={notify}
+        />
+      )}
       <aside className="sidebar">
         <div className="brand">
           <strong>JobPilot</strong>
@@ -239,22 +342,16 @@ function App() {
                     : "Settings"}
             </h1>
           </div>
-          <select
-            className="profile"
-            value={profile.id || ""}
-            onChange={(e) => switchProfile(e.target.value)}
-          >
-            <option value="">
-              {profile.profile_name || profile.full_name || "Profile"}
-            </option>
-            {profiles
-              .filter((item) => item.id !== profile.id)
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.profile_name || item.full_name || `Profile ${item.id}`}
-                </option>
-              ))}
-          </select>
+          {/* Profile avatar button — opens switch modal */}
+          <button className="profile-btn" onClick={() => setShowSwitchModal(true)}>
+            <div className="profile-av" style={{ background: profColor(profile.id) }}>
+              {profile.avatar_path
+                ? <img src={`/api/profiles/${profile.id}/avatar`} alt="avatar" />
+                : profInitials(profile)}
+            </div>
+            <span>{profile.profile_name || profile.full_name || "Profile"}</span>
+            <ChevronRight size={14} />
+          </button>
         </header>
         <section className="content">
           {error && <div className="notice error">{error}</div>}
@@ -268,6 +365,11 @@ function App() {
               scores={scores}
               removeJob={removeJob}
               applyJob={applyJob}
+              selectedJobs={selectedJobs}
+              toggleJob={toggleJob}
+              applySelected={applySelected}
+              applyAll={applyAll}
+              applying={applying}
             />
           )}{" "}
           {page === "tracker" && (
@@ -281,7 +383,13 @@ function App() {
           )}{" "}
           {page === "sites" && <Sites notify={notify} />}{" "}
           {page === "settings" && (
-            <SettingsView profile={profile} refresh={refresh} notify={notify} />
+            <SettingsView
+              profile={profile}
+              refresh={refresh}
+              notify={notify}
+              clearJobs={clearJobs}
+              onOpenLogin={openLoginPage}
+            />
           )}
         </section>
       </main>
@@ -307,10 +415,33 @@ function Feed({
   scores,
   removeJob,
   applyJob,
+  selectedJobs,
+  toggleJob,
+  applySelected,
+  applyAll,
+  applying,
 }) {
+  const suggestions = [
+    "last 24 hours",
+    "in Bengaluru",
+    "in Hyderabad",
+    "remote",
+    "full time",
+    "3 years experience",
+  ];
   return (
     <>
-      <div className="hero">
+      {/* ── Careers hero banner ── */}
+      <div className="careers-banner">
+        <div className="careers-banner-text">
+          <h2>Find your next role</h2>
+          <p>AI fills every application form — you just click Apply</p>
+        </div>
+        <button className="primary careers-banner-cta" onClick={() => document.querySelector(".toolbar input")?.focus()}>
+          Search Jobs →
+        </button>
+      </div>
+      <div className="hero" style={{display:"none"}}>
         <div>
           <span className="eyebrow">DISCOVER</span>
           <h2>Find your next role</h2>
@@ -334,6 +465,38 @@ function Feed({
           Search
         </button>
       </div>
+      <div className="prompt-suggestions">
+        <span>Quick add:</span>
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion}
+            onClick={() =>
+              setQuery((current) =>
+                current && !current.toLowerCase().includes(suggestion)
+                  ? `${current}, ${suggestion}`
+                  : current || suggestion,
+              )
+            }
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+      {jobs.some((job) => job.status !== "applied") && (
+        <div className="bulk-bar">
+          <span>{selectedJobs.size} selected</span>
+          <button
+            className="secondary"
+            onClick={applySelected}
+            disabled={applying}
+          >
+            Apply selected
+          </button>
+          <button className="primary" onClick={applyAll} disabled={applying}>
+            {applying ? "Applying…" : "Apply all new"}
+          </button>
+        </div>
+      )}
       <div className="section-heading">
         <div>
           <h2>Latest matches</h2>
@@ -349,6 +512,8 @@ function Feed({
               score={scores[job.id]}
               removeJob={removeJob}
               applyJob={applyJob}
+              selected={selectedJobs.has(job.id)}
+              toggleJob={toggleJob}
             />
           ))
         ) : (
@@ -358,10 +523,17 @@ function Feed({
     </>
   );
 }
-function JobCard({ job, score, removeJob, applyJob }) {
+function JobCard({ job, score, removeJob, applyJob, selected, toggleJob }) {
   return (
     <article className="job-card">
       <div className="job-main">
+        <input
+          className="job-check"
+          type="checkbox"
+          checked={selected}
+          onChange={() => toggleJob(job.id)}
+          aria-label={`Select ${job.title}`}
+        />
         <div className="job-top">
           <span className="site-tag">{esc(job.site)}</span>
           <span className={`status ${job.status || "new"}`}>
@@ -579,11 +751,20 @@ function Sites({ notify }) {
     </>
   );
 }
-function SettingsView({ profile, refresh, notify }) {
+function SettingsView({ profile, refresh, notify, clearJobs, onOpenLogin }) {
   const [name, setName] = useState(profile.profile_name || "");
+  const [fullName, setFullName] = useState(profile.full_name || "");
+  const [email, setEmail] = useState(profile.email || "");
+  const [phone, setPhone] = useState(profile.phone || "");
+  const [location, setLocation] = useState(profile.location || "");
   const [title, setTitle] = useState(profile.current_title || "");
   const [desired, setDesired] = useState(profile.desired_title || "");
+  const [salary, setSalary] = useState(profile.desired_salary || "");
+  const [experience, setExperience] = useState(profile.years_experience || 0);
+  const [summary, setSummary] = useState(profile.summary || "");
+  const [skills, setSkills] = useState(profile.skills || []);
   const [key, setKey] = useState("");
+  const [resumeBusy, setResumeBusy] = useState(false);
   const [searches, setSearches] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [searchName, setSearchName] = useState("");
@@ -601,6 +782,72 @@ function SettingsView({ profile, refresh, notify }) {
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => {
+    setName(profile.profile_name || "");
+    setFullName(profile.full_name || "");
+    setEmail(profile.email || "");
+    setPhone(profile.phone || "");
+    setLocation(profile.location || "");
+    setTitle(profile.current_title || "");
+    setDesired(profile.desired_title || "");
+    setSalary(profile.desired_salary || "");
+    setExperience(profile.years_experience || 0);
+    setSummary(profile.summary || "");
+    setSkills(profile.skills || []);
+  }, [profile.id]);
+  const saveProfile = async (data = {}) => {
+    await api("POST", "/api/profile", {
+      profile_name: name,
+      full_name: fullName,
+      email,
+      phone,
+      location,
+      current_title: title,
+      desired_title: desired,
+      desired_salary: salary,
+      years_experience: Number(experience) || 0,
+      summary,
+      skills,
+      ...data,
+    });
+    await refresh();
+  };
+  const uploadResume = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setResumeBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const upload = await fetch("/api/upload-resume", {
+        method: "POST",
+        body: form,
+      });
+      if (!upload.ok) throw new Error("Resume upload failed");
+      const result = await upload.json();
+      await saveProfile({ resume_path: result.path });
+      const parsed = await api("POST", "/api/ai/parse-resume");
+      const extracted = parsed.extracted || {};
+      setFullName(extracted.full_name || fullName);
+      setEmail(extracted.email || email);
+      setPhone(extracted.phone || phone);
+      setLocation(extracted.location || location);
+      setTitle(extracted.current_title || title);
+      setExperience(extracted.years_experience || experience);
+      setSummary(extracted.summary || summary);
+      setSkills([...new Set([...(skills || []), ...(extracted.skills || [])])]);
+      await saveProfile({
+        ...extracted,
+        resume_path: result.path,
+        skills: [...new Set([...(skills || []), ...(extracted.skills || [])])],
+      });
+      notify("Resume uploaded and profile parsed");
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setResumeBusy(false);
+    }
+  };
   const saveSearch = async () => {
     if (!searchQuery.trim()) return notify("Enter search keywords");
     try {
@@ -615,16 +862,6 @@ function SettingsView({ profile, refresh, notify }) {
       setSearchQuery("");
       load();
       notify("Saved search created");
-    } catch (e) {
-      notify(e.message);
-    }
-  };
-  const clearJobs = async () => {
-    if (!window.confirm("Delete all stored jobs?")) return;
-    try {
-      await api("DELETE", "/api/jobs/all");
-      notify("Jobs cleared");
-      refresh();
     } catch (e) {
       notify(e.message);
     }
@@ -651,6 +888,34 @@ function SettingsView({ profile, refresh, notify }) {
           Profile name
           <input value={name} onChange={(e) => setName(e.target.value)} />
         </label>
+        <div className="settings-grid-two">
+          <label>
+            Full name
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </label>
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label>
+            Phone
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <label>
+            Location
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </label>
+        </div>
         <label>
           Current title
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -659,14 +924,58 @@ function SettingsView({ profile, refresh, notify }) {
           Desired title
           <input value={desired} onChange={(e) => setDesired(e.target.value)} />
         </label>
+        <div className="settings-grid-two">
+          <label>
+            Expected salary
+            <input value={salary} onChange={(e) => setSalary(e.target.value)} />
+          </label>
+          <label>
+            Years of experience
+            <input
+              type="number"
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+            />
+          </label>
+        </div>
+        <label>
+          Professional summary
+          <textarea
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+          />
+        </label>
+        <label>
+          Skills
+          <input
+            value={skills.join(", ")}
+            onChange={(e) =>
+              setSkills(
+                e.target.value
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean),
+              )
+            }
+            placeholder="python, fastapi, sql"
+          />
+        </label>
         <button
           className="primary"
           onClick={async () => {
             try {
               await api("POST", "/api/profile", {
                 profile_name: name,
+                full_name: fullName,
+                email,
+                phone,
+                location,
                 current_title: title,
                 desired_title: desired,
+                desired_salary: salary,
+                years_experience: Number(experience) || 0,
+                summary,
+                skills,
               });
               await refresh();
               notify("Profile saved");
@@ -701,6 +1010,23 @@ function SettingsView({ profile, refresh, notify }) {
         >
           Save AI key
         </button>
+      </div>
+      <div className="settings-card">
+        <h3>Resume</h3>
+        <p>
+          {profile.resume_path
+            ? `Uploaded: ${profile.resume_path.split("/").pop()}`
+            : "Upload a PDF or DOCX and JobPilot will parse it into your profile."}
+        </p>
+        <label className="upload-button">
+          {resumeBusy ? "Parsing resume…" : "Upload and parse resume"}
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            onChange={uploadResume}
+            disabled={resumeBusy}
+          />
+        </label>
       </div>
       <div className="settings-card">
         <h3>Saved searches</h3>
@@ -763,6 +1089,11 @@ function SettingsView({ profile, refresh, notify }) {
         <button className="secondary danger-button" onClick={clearJobs}>
           <Trash2 size={15} /> Clear all jobs
         </button>
+        <hr />
+        <p>Switch to a different account or create a new one.</p>
+        <button className="secondary" onClick={onOpenLogin}>
+          <LogOut size={15} /> Switch account
+        </button>
       </div>
     </>
   );
@@ -772,6 +1103,243 @@ function Empty({ text }) {
     <div className="empty">
       <FileText size={30} />
       <p>{text}</p>
+    </div>
+  );
+}
+
+// ── LoginPage ───────────────────────────────────────────────────────────────
+function LoginPage({ profiles: initialProfiles, loadProfiles, onEnter }) {
+  const [profiles, setProfiles] = useState(initialProfiles || []);
+  const [view, setView] = useState("picker"); // "picker" | "password" | "new"
+  const [target, setTarget] = useState(null);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newErr, setNewErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api("GET", "/api/profiles")
+      .then(setProfiles)
+      .catch(() => {});
+  }, []);
+
+  const handleCardClick = (p) => {
+    if (p.is_active && !p.has_password) { onEnter(); return; }
+    if (p.has_password) { setTarget(p); setPw(""); setPwErr(""); setView("password"); }
+    else activateAndEnter(p.id);
+  };
+
+  const activateAndEnter = async (id) => {
+    setBusy(true);
+    try {
+      await api("POST", `/api/profiles/${id}/activate`);
+      onEnter();
+    } catch (e) { setPwErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const submitPassword = async () => {
+    if (!pw) { setPwErr("Enter your password"); return; }
+    setBusy(true);
+    try {
+      await api("POST", `/api/profiles/${target.id}/verify-password`, { password: pw });
+      await activateAndEnter(target.id);
+    } catch (_) {
+      setPwErr("Incorrect password");
+      setPw("");
+    } finally { setBusy(false); }
+  };
+
+  const createProfile = async () => {
+    if (!newName.trim()) { setNewErr("Enter a name"); return; }
+    setBusy(true);
+    try {
+      const created = await api("POST", "/api/profiles", { name: newName.trim() });
+      await api("POST", `/api/profiles/${created.id}/activate`);
+      onEnter();
+    } catch (e) { setNewErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="login-page">
+      {/* Left panel — office hero image */}
+      <div className="login-left">
+        <div className="login-left-overlay">
+          <div className="login-left-quote">
+            <div>Better Jobs.<br />Brighter Futures.</div>
+            <p>AI-powered job search that works while you sleep.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel — profile picker */}
+      <div className="login-right">
+        <div className="login-brand">
+          <strong>JobPilot</strong>
+          <span>Choose your account to continue</span>
+        </div>
+
+        {view === "picker" && (
+          <>
+            <div className="login-grid">
+              {profiles.map((p) => (
+                <button
+                  key={p.id}
+                  className={`login-card ${p.is_active ? "active" : ""}`}
+                  onClick={() => handleCardClick(p)}
+                >
+                  <div className="login-av" style={{ background: profColor(p.id) }}>
+                    {p.avatar_path
+                      ? <img src={`/api/profiles/${p.id}/avatar`} alt="avatar" />
+                      : profInitials(p)}
+                  </div>
+                  {p.has_password && <span className="login-lock"><Lock size={9} /></span>}
+                  <span className="login-card-name">{p.profile_name || "Unnamed"}</span>
+                  <span className="login-card-title">{p.current_title || ""}</span>
+                  {p.is_active && <span className="login-badge">Active</span>}
+                </button>
+              ))}
+              <button className="login-card login-add" onClick={() => { setNewName(""); setNewErr(""); setView("new"); }}>
+                <div className="login-av login-av-add"><Plus size={24} /></div>
+                <span className="login-card-name">New Profile</span>
+              </button>
+            </div>
+            <button className="login-skip" onClick={onEnter}>Skip →</button>
+          </>
+        )}
+
+        {view === "password" && (
+          <div className="login-pw-screen">
+            <div className="login-av lg" style={{ background: profColor(target?.id) }}>
+              {target?.avatar_path
+                ? <img src={`/api/profiles/${target.id}/avatar`} alt="avatar" />
+                : profInitials(target)}
+            </div>
+            <strong>{target?.profile_name || "Profile"}</strong>
+            <input
+              type="password"
+              value={pw}
+              onChange={(e) => { setPw(e.target.value); setPwErr(""); }}
+              onKeyDown={(e) => e.key === "Enter" && submitPassword()}
+              placeholder="Password"
+              autoFocus
+              className="login-pw-input"
+            />
+            {pwErr && <span className="login-err">{pwErr}</span>}
+            <button className="login-btn-primary" onClick={submitPassword} disabled={busy}>
+              {busy ? <LoaderCircle className="spin" size={16} /> : <><Lock size={14} /> Unlock</>}
+            </button>
+            <button className="login-back" onClick={() => setView("picker")}>← Back</button>
+          </div>
+        )}
+
+        {view === "new" && (
+          <div className="login-pw-screen">
+            <strong style={{fontSize:"16px",marginBottom:"4px"}}>New Account</strong>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => { setNewName(e.target.value); setNewErr(""); }}
+              onKeyDown={(e) => e.key === "Enter" && createProfile()}
+              placeholder='e.g. "Senior Backend Engineer"'
+              autoFocus
+              className="login-pw-input"
+            />
+            {newErr && <span className="login-err">{newErr}</span>}
+            <button className="login-btn-primary" onClick={createProfile} disabled={busy}>
+              {busy ? <LoaderCircle className="spin" size={16} /> : "Create & Enter"}
+            </button>
+            <button className="login-back" onClick={() => setView("picker")}>← Cancel</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── ProfileSwitchModal ───────────────────────────────────────────────────────
+function ProfileSwitchModal({ profiles, currentId, onSwitch, onClose, notify }) {
+  const [view, setView] = useState("list"); // "list" | "password"
+  const [target, setTarget] = useState(null);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSelect = (p) => {
+    if (String(p.id) === String(currentId)) { onClose(); return; }
+    if (p.has_password) { setTarget(p); setPw(""); setPwErr(""); setView("password"); }
+    else onSwitch(p.id);
+  };
+
+  const submitPw = async () => {
+    if (!pw) { setPwErr("Enter password"); return; }
+    setBusy(true);
+    try {
+      await api("POST", `/api/profiles/${target.id}/verify-password`, { password: pw });
+      onSwitch(target.id);
+    } catch (_) { setPwErr("Incorrect password"); setPw(""); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="switch-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="switch-modal-header">
+          <span>Switch Account</span>
+          <button onClick={onClose}><X size={16} /></button>
+        </div>
+
+        {view === "list" && (
+          <div className="switch-modal-list">
+            {profiles.map((p) => (
+              <button
+                key={p.id}
+                className={`switch-item ${String(p.id) === String(currentId) ? "active" : ""}`}
+                onClick={() => handleSelect(p)}
+              >
+                <div className="switch-av" style={{ background: profColor(p.id) }}>
+                  {p.avatar_path
+                    ? <img src={`/api/profiles/${p.id}/avatar`} alt="avatar" />
+                    : profInitials(p)}
+                </div>
+                <div className="switch-info">
+                  <strong>{p.profile_name || "Unnamed"}</strong>
+                  <span>{p.current_title || ""}</span>
+                </div>
+                {p.has_password && <Lock size={13} style={{color:"#94a3b8",flexShrink:0}} />}
+                {String(p.id) === String(currentId) && <span className="switch-badge">Active</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {view === "password" && (
+          <div className="switch-modal-pw">
+            <div className="switch-av lg" style={{ background: profColor(target?.id) }}>
+              {target?.avatar_path
+                ? <img src={`/api/profiles/${target.id}/avatar`} alt="avatar" />
+                : profInitials(target)}
+            </div>
+            <strong>{target?.profile_name}</strong>
+            <input
+              type="password"
+              value={pw}
+              onChange={(e) => { setPw(e.target.value); setPwErr(""); }}
+              onKeyDown={(e) => e.key === "Enter" && submitPw()}
+              placeholder="Password"
+              autoFocus
+              className="switch-pw-input"
+            />
+            {pwErr && <span className="switch-err">{pwErr}</span>}
+            <button className="primary" onClick={submitPw} disabled={busy} style={{width:"100%"}}>
+              {busy ? <LoaderCircle className="spin" size={15} /> : "Unlock"}
+            </button>
+            <button className="login-back" onClick={() => setView("list")}>← Back</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
